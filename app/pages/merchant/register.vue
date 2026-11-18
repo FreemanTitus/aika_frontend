@@ -1,9 +1,8 @@
 <!-- pages/merchant/register.vue -->
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRuntimeConfig } from '#app'
 import { 
-  Building2, 
   Layers3, 
   MapPin, 
   Mail, 
@@ -15,9 +14,6 @@ import {
   Eye, 
   EyeOff,
   Store,
-  CheckCircle2,
-  Info,
-  Sparkles,
   ArrowRight
 } from '@lucide/vue'
 
@@ -28,6 +24,51 @@ definePageMeta({
 const config = useRuntimeConfig()
 const apiBase = config.public.apiBase
 const router = useRouter()
+
+// Cloudflare Turnstile States
+const captchaToken = ref('')
+const widgetId = ref<string | null>(null)
+let turnstileInterval: any = null
+
+useHead({
+  script: [
+    {
+      src: 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit',
+      async: true,
+      defer: true
+    }
+  ]
+})
+
+const renderTurnstile = () => {
+  const turnstile = (window as any).turnstile
+  const siteKey = config.public.turnstileSiteKey
+  if (!turnstile || !siteKey) return
+
+  const container = document.getElementById('turnstile-widget')
+  if (container && container.innerHTML.trim() !== '') return
+
+  widgetId.value = turnstile.render('#turnstile-widget', {
+    sitekey: siteKey,
+    theme: 'light',
+    callback: (token: string) => {
+      captchaToken.value = token
+    },
+    'expired-callback': () => {
+      captchaToken.value = ''
+    },
+    'error-callback': () => {
+      captchaToken.value = ''
+    }
+  })
+}
+
+const resetTurnstile = () => {
+  captchaToken.value = ''
+  if ((window as any).turnstile && widgetId.value !== null) {
+    ;(window as any).turnstile.reset(widgetId.value)
+  }
+}
 
 // UI Control States
 const isSubmitting = ref(false)
@@ -102,6 +143,20 @@ const onStateSelected = (stateName: string) => {
 
 onMounted(() => {
   fetchLocations()
+
+  turnstileInterval = setInterval(() => {
+    if ((window as any).turnstile) {
+      clearInterval(turnstileInterval)
+      renderTurnstile()
+    }
+  }, 200)
+})
+
+onBeforeUnmount(() => {
+  if (turnstileInterval) clearInterval(turnstileInterval)
+  if ((window as any).turnstile && widgetId.value !== null) {
+    ;(window as any).turnstile.remove(widgetId.value)
+  }
 })
 
 const validateFormInputMetrics = (): boolean => {
@@ -129,6 +184,11 @@ const validateFormInputMetrics = (): boolean => {
 
   if (!form.value.terms) {
     errorText.value = "You must accept the terms and privacy policy to proceed."
+    return false
+  }
+
+  if (!captchaToken.value) {
+    errorText.value = "Please complete the security verification check before submitting."
     return false
   }
 
@@ -167,17 +227,24 @@ const handleMerchantOnboardingSubmit = async () => {
     const response: any = await $fetch(`${apiBase}/api/v1/auth/register/business`, {
       method: 'POST',
       headers: {
-        'ngrok-skip-browser-warning': 'true',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-Captcha-Token': captchaToken.value
       },
       body: payload
     })
 
-    if (response.status === 'success') {
+    if (response.status === 'success' || response.user_id) {
       router.push('/auth/login')
     }
   } catch (err: any) {
-    errorText.value = err.response?._data?.detail || err?.data?.detail || err?.message || "An unresolved network handshake fault occurred."
+    errorText.value =
+      err?.data?.message ||
+      err?.data?.detail ||
+      err.response?._data?.message ||
+      err.response?._data?.detail ||
+      "Registration failed. Please check your details and try again."
+
+    resetTurnstile()
   } finally {
     isSubmitting.value = false
   }
@@ -459,6 +526,11 @@ const handleMerchantOnboardingSubmit = async () => {
               <input v-model="form.terms" type="checkbox" required class="w-4 h-4 rounded border-gray-300 text-[#0A1128] focus:ring-0 cursor-pointer accent-[#0A1128]" />
               <span class="text-[11px] font-bold text-gray-600">I agree to the <NuxtLink to="/privacy" class="text-[#0A1128] underline font-black">Privacy Policy</NuxtLink> and Terms of Service *</span>
             </label>
+          </div>
+
+          <!-- Cloudflare Turnstile Security Verification Widget -->
+          <div class="pt-2 flex justify-center">
+            <div id="turnstile-widget"></div>
           </div>
 
           <!-- Submit Button -->

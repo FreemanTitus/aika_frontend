@@ -1,6 +1,6 @@
 <!-- pages/signup.vue -->
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute, useRuntimeConfig } from '#app'
 import { 
   UserCheck, 
@@ -24,6 +24,50 @@ definePageMeta({
 
 const config = useRuntimeConfig()
 const apiBase = config.public.apiBase
+const captchaToken = ref('')
+const widgetId = ref<string | null>(null)
+let turnstileInterval: any = null
+
+useHead({
+  script: [
+    {
+      src: 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit',
+      async: true,
+      defer: true
+    }
+  ]
+})
+
+const renderTurnstile = () => {
+  const turnstile = (window as any).turnstile
+  const siteKey = config.public.turnstileSiteKey
+  if (!turnstile || !siteKey) return
+
+  // Prevent duplicate renders if component remounts
+  const container = document.getElementById('turnstile-widget')
+  if (container && container.innerHTML.trim() !== '') return
+
+  widgetId.value = turnstile.render('#turnstile-widget', {
+    sitekey: siteKey,
+    theme: 'light',
+    callback: (token: string) => {
+      captchaToken.value = token
+    },
+    'expired-callback': () => {
+      captchaToken.value = ''
+    },
+    'error-callback': () => {
+      captchaToken.value = ''
+    }
+  })
+}
+
+const resetTurnstile = () => {
+  captchaToken.value = ''
+  if ((window as any).turnstile && widgetId.value !== null) {
+    ;(window as any).turnstile.reset(widgetId.value)
+  }
+}
 
 const router = useRouter()
 const route = useRoute()
@@ -52,12 +96,26 @@ const form = ref({
   terms: false
 })
 
-// Auto-detect referral code from query parameters if shared via link (e.g., /signup?ref=AIKA-ABC123)
+// Single onMounted hook: initialize Turnstile, referral query param, and locations
 onMounted(() => {
   if (route.query.ref) {
     form.value.referral_code = String(route.query.ref).trim().toUpperCase()
   }
   fetchLocations()
+
+  turnstileInterval = setInterval(() => {
+    if ((window as any).turnstile) {
+      clearInterval(turnstileInterval)
+      renderTurnstile()
+    }
+  }, 200)
+})
+
+onBeforeUnmount(() => {
+  if (turnstileInterval) clearInterval(turnstileInterval)
+  if ((window as any).turnstile && widgetId.value !== null) {
+    ;(window as any).turnstile.remove(widgetId.value)
+  }
 })
 
 // Fetch active coverage areas from the database
@@ -85,7 +143,9 @@ const uniqueStates = computed(() => {
 // Filter locations to only show areas within the selected state
 const filteredLocations = computed(() => {
   if (!selectedState.value) return []
-  return availableLocations.value.filter(loc => loc.state_name === selectedState.value).sort((a, b) => a.name.localeCompare(b.name))
+  return availableLocations.value
+    .filter(loc => loc.state_name === selectedState.value)
+    .sort((a, b) => a.name.localeCompare(b.name))
 })
 
 // Reset the area selection whenever the user changes the state
@@ -113,6 +173,11 @@ const validateFormInputMetrics = (): boolean => {
 
   if (!form.value.terms) {
     errorText.value = "You must accept the terms of service tracking policies to proceed."
+    return false
+  }
+
+  if (!captchaToken.value) {
+    errorText.value = "Please complete the security verification check before submitting."
     return false
   }
 
@@ -146,8 +211,8 @@ const handleOnboardingSubmit = async () => {
     const response: any = await $fetch(targetEndpoint, {
       method: 'POST',
       headers: {
-        'ngrok-skip-browser-warning': 'true',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-Captcha-Token': captchaToken.value
       },
       body: payload
     })
@@ -156,7 +221,14 @@ const handleOnboardingSubmit = async () => {
       router.push('/auth/login') 
     }
   } catch (err: any) {
-    errorText.value = err.response?._data?.detail || err?.data?.detail || err?.message || "An unresolved network handshake fault occurred."
+    errorText.value =
+      err?.data?.message ||
+      err?.data?.detail ||
+      err.response?._data?.message ||
+      err.response?._data?.detail ||
+      "Registration failed. Please check your details and try again."
+
+    resetTurnstile()
   } finally {
     isSubmitting.value = false
   }
@@ -405,6 +477,11 @@ const handleOnboardingSubmit = async () => {
             <label for="terms" class="ml-2.5 text-[11px] font-bold text-gray-500 select-none cursor-pointer leading-tight tracking-tight">
               I certify inputs are valid, and agree to the <NuxtLink to="/terms" class="text-[#0A1128] font-black hover:underline">Terms of Service</NuxtLink> and tracking policies.
             </label>
+          </div>
+
+          <!-- Cloudflare Turnstile Security Verification Widget -->
+          <div class="pt-2 flex justify-center">
+            <div id="turnstile-widget"></div>
           </div>
 
           <button type="submit" :disabled="isSubmitting" class="group w-full bg-[#0A1128] hover:bg-[#16224a] text-[#D4F53C] font-black py-3.5 rounded-2xl shadow-xl shadow-[#0A1128]/20 transition-all transform active:scale-98 mt-3 flex items-center justify-center space-x-2 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed cursor-pointer border-0 outline-none text-xs uppercase tracking-wider">

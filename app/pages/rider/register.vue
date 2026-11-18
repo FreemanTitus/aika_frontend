@@ -1,6 +1,6 @@
 <!-- pages/auth/register-rider.vue -->
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRuntimeConfig } from '#app'
 import { 
   Bike, 
@@ -28,6 +28,82 @@ const currentStep = ref(1)
 const totalSteps = 4
 const isSubmitting = ref(false)
 const errorText = ref<string | null>(null)
+
+// Cloudflare Turnstile States
+const captchaToken = ref('')
+const widgetId = ref<string | null>(null)
+let turnstileInterval: any = null
+
+useHead({
+  script: [
+    {
+      src: 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit',
+      async: true,
+      defer: true
+    }
+  ]
+})
+
+const renderTurnstile = () => {
+  const turnstile = (window as any).turnstile
+  const siteKey = config.public.turnstileSiteKey
+  if (!turnstile || !siteKey) return
+
+  const container = document.getElementById('turnstile-widget')
+  if (!container || container.innerHTML.trim() !== '') return
+
+  widgetId.value = turnstile.render('#turnstile-widget', {
+    sitekey: siteKey,
+    theme: 'light',
+    callback: (token: string) => {
+      captchaToken.value = token
+    },
+    'expired-callback': () => {
+      captchaToken.value = ''
+    },
+    'error-callback': () => {
+      captchaToken.value = ''
+    }
+  })
+}
+
+const cleanupTurnstile = () => {
+  if (turnstileInterval) {
+    clearInterval(turnstileInterval)
+    turnstileInterval = null
+  }
+  captchaToken.value = ''
+  if ((window as any).turnstile && widgetId.value !== null) {
+    ;(window as any).turnstile.remove(widgetId.value)
+    widgetId.value = null
+  }
+}
+
+const resetTurnstile = () => {
+  captchaToken.value = ''
+  if ((window as any).turnstile && widgetId.value !== null) {
+    ;(window as any).turnstile.reset(widgetId.value)
+  }
+}
+
+// Render Turnstile whenever Step 4 mounts into the DOM, and remove it if user clicks Back
+watch(currentStep, async (step) => {
+  if (step === totalSteps) {
+    await nextTick()
+    if ((window as any).turnstile) {
+      renderTurnstile()
+    } else {
+      turnstileInterval = setInterval(() => {
+        if ((window as any).turnstile) {
+          clearInterval(turnstileInterval)
+          renderTurnstile()
+        }
+      }, 200)
+    }
+  } else {
+    cleanupTurnstile()
+  }
+})
 
 // Dynamic Locations State
 const availableLocations = ref<any[]>([])
@@ -82,6 +158,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  cleanupTurnstile()
   if (guarantorPassportPreview.value) {
     URL.revokeObjectURL(guarantorPassportPreview.value)
   }
@@ -191,6 +268,11 @@ const handleRiderRegistration = async () => {
     return
   }
 
+  if (!captchaToken.value) {
+    errorText.value = "Please complete the security verification check before submitting."
+    return
+  }
+
   isSubmitting.value = true
 
   try {
@@ -225,7 +307,7 @@ const handleRiderRegistration = async () => {
     await $fetch(`${apiBase}/api/v1/auth/register/rider`, {
       method: 'POST',
       headers: {
-        'ngrok-skip-browser-warning': 'true'
+        'X-Captcha-Token': captchaToken.value
       },
       body: fd
     })
@@ -239,8 +321,11 @@ const handleRiderRegistration = async () => {
       errorText.value =
         detail ||
         err?.data?.message ||
+        err?.response?._data?.message ||
         "Registration failed. Verify your details."
     }
+
+    resetTurnstile()
   } finally {
     isSubmitting.value = false
   }
@@ -452,7 +537,7 @@ const handleRiderRegistration = async () => {
             </div>
 
             <div class="pt-2 border-t border-dashed border-gray-200">
-              <p class="text-[11px] font-black text-[#0A1128] uppercase tracking-wider">Guarantor Verification & Employment</p>
+              <p class="text-[11px] font-black text-[#0A1128] uppercase tracking-wider">Guarantor Verification &amp; Employment</p>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -549,6 +634,11 @@ const handleRiderRegistration = async () => {
               <label class="ml-3 text-xs font-bold text-gray-500 cursor-pointer leading-relaxed">
                 I certify that my profile inputs and guarantor credentials are valid, and I agree to the <span class="text-lime-600 font-black underline">Terms of Service</span>.
               </label>
+            </div>
+
+            <!-- Cloudflare Turnstile Security Verification Widget -->
+            <div class="pt-2 flex justify-center">
+              <div id="turnstile-widget"></div>
             </div>
           </div>
 
