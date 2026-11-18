@@ -3,7 +3,6 @@
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { useRouter, useRoute, useRuntimeConfig } from '#app'
 import { 
-  User, 
   UserCheck, 
   Signature, 
   MapPin, 
@@ -20,7 +19,7 @@ import {
 } from '@lucide/vue'
 
 definePageMeta({
-  layout: 'default'
+  layout: false // Full screen layout matching the login portal
 })
 
 const config = useRuntimeConfig()
@@ -165,75 +164,147 @@ const handleOnboardingSubmit = async () => {
 </script>
 
 <template>
-  <div class="w-full min-h-[90vh] flex flex-col justify-center bg-gray-50/50 py-12 px-4 sm:px-6 lg:px-8 text-left">
-    <main class="max-w-xl w-full mx-auto">
-      <div class="bg-white p-6 sm:p-10 rounded-[32px] shadow-xl border border-gray-100 relative overflow-hidden">
-        
-        <!-- Decorative Top Accent Line -->
-        <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#0A1128] via-[#D4F53C] to-[#0A1128]"></div>
+  <div class="min-h-screen w-full grid lg:grid-cols-2 font-sans selection:bg-[#D4F53C] selection:text-[#0A1128]">
 
-        <div class="text-center mb-8 space-y-3">
-          <span class="bg-[#D4F53C]/20 text-[#0A1128] font-black px-4 py-1.5 rounded-full text-[10px] uppercase tracking-widest inline-block shadow-2xs">
-            Customer Portal
-          </span>
-          <h1 class="text-2xl sm:text-3xl font-black text-[#0A1128] tracking-tight">
-            Create an Account
-          </h1>
-          <p class="text-gray-500 text-xs sm:text-sm max-w-sm mx-auto font-medium leading-relaxed">
-            Create an individual account to order meals and retail goods from your local marketplace.
-          </p>
+    <!-- ───────── Left Side: Full Colored Brand Panel ───────── -->
+    <aside class="relative hidden lg:flex flex-col justify-between bg-[#0A1128] p-16 text-white overflow-hidden">
+      <!-- Ambient Background Glows -->
+      <div class="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-[#D4F53C]/10 blur-3xl pointer-events-none"></div>
+      <div class="absolute -bottom-32 -left-32 w-96 h-96 rounded-full bg-blue-500/10 blur-3xl pointer-events-none"></div>
+
+      <div class="relative z-10">
+        <NuxtLink to="/" class="inline-flex items-center space-x-2.5 group no-underline">
+          <div class="w-28 flex items-center justify-center p-1">
+            <img src="/images/logo_white.png" alt="Aika Logo" class="w-full h-full object-contain">
+          </div>
+        </NuxtLink>
+      </div>
+
+      <div class="relative z-10 space-y-6 my-auto py-12">
+        <span class="inline-block bg-[#D4F53C] text-[#0A1128] font-black text-[10px] uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg">
+          Customer Onboarding
+        </span>
+        <h2 class="text-5xl font-black leading-tight tracking-tight">
+          Join the Aika<br />
+          <span class="text-[#D4F53C]">marketplace network.</span>
+        </h2>
+        <p class="text-gray-300 text-sm leading-relaxed max-w-md font-medium">
+          Order fresh meals and retail goods directly from verified local storefronts with rapid rider delivery.
+        </p>
+
+        <ul class="space-y-4 pt-4">
+          <li class="flex items-center gap-3.5 text-xs font-bold text-gray-200">
+            <span class="w-2 h-2 rounded-full bg-[#D4F53C]"></span>
+            Live multi-vendor catalog browsing
+          </li>
+          <li class="flex items-center gap-3.5 text-xs font-bold text-gray-200">
+            <span class="w-2 h-2 rounded-full bg-[#D4F53C]"></span>
+            Secure checkout and instant tracking
+          </li>
+          <li class="flex items-center gap-3.5 text-xs font-bold text-gray-200">
+            <span class="w-2 h-2 rounded-full bg-[#D4F53C]"></span>
+            Referral rewards &amp; loyalty discounts
+          </li>
+        </ul>
+      </div>
+
+      <p class="relative z-10 text-xs text-gray-400 font-medium">
+        © {{ new Date().getFullYear() }} Aika. All rights reserved.
+      </p>
+    </aside>
+
+    <!-- ───────── Right Side: Full White Form Panel ───────── -->
+    <main class="flex flex-col justify-center items-center bg-white p-6 sm:p-12 lg:p-16 min-h-screen lg:min-h-0 overflow-y-auto max-h-screen lg:max-h-screen no-scrollbar">
+      <div class="w-full max-w-md mx-auto space-y-6 my-auto py-6">
+        
+        <!-- Mobile brand mark -->
+        <div class="lg:hidden flex items-center justify-center mb-4">
+          <div class="w-32">
+            <img src="/images/logo.png" alt="Aika Logo" class="w-full object-contain">
+          </div>
         </div>
 
-        <form @submit.prevent="handleOnboardingSubmit" class="space-y-5">
+        <!-- Header -->
+        <header class="text-center lg:text-left space-y-2">
+          <span class="inline-block text-[10px] font-black uppercase tracking-[0.15em] text-[#0A1128] bg-[#D4F53C]/40 px-3.5 py-1 rounded-full">
+            Customer Portal
+          </span>
+          <h1 class="text-3xl font-black text-[#0A1128] tracking-tight">
+            Create an Account
+          </h1>
+          <p class="text-xs sm:text-sm text-gray-500 font-medium">
+            Register an individual profile to start placing marketplace orders.
+          </p>
+        </header>
+
+        <!-- Error banner -->
+        <Transition
+          enter-active-class="transition duration-200 ease-out"
+          enter-from-class="opacity-0 -translate-y-1"
+          leave-active-class="transition duration-150 ease-in"
+          leave-to-class="opacity-0"
+        >
+          <div
+            v-if="errorText"
+            role="alert"
+            class="flex items-start gap-2.5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-bold text-rose-700"
+          >
+            <AlertCircle class="w-4 h-4 shrink-0 text-rose-500 mt-px" />
+            <span>{{ errorText }}</span>
+          </div>
+        </Transition>
+
+        <!-- Form -->
+        <form @submit.prevent="handleOnboardingSubmit" class="space-y-3.5" novalidate>
           
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="space-y-1.5">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="space-y-1">
               <label class="block text-xs font-black text-gray-400 uppercase tracking-wider">First Name</label>
               <div class="relative group">
-                <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 group-focus-within:text-[#0A1128] transition-colors"><UserCheck class="w-4 h-4" /></span>
-                <input v-model="form.first_name" type="text" placeholder="John" required class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-semibold text-base sm:text-sm transition shadow-2xs" />
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400 group-focus-within:text-[#0A1128] transition-colors"><UserCheck class="w-4 h-4" /></span>
+                <input v-model="form.first_name" type="text" placeholder="John" required class="w-full pl-10 pr-4 py-3 bg-gray-50/80 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-semibold text-xs transition shadow-2xs" />
               </div>
             </div>
-            <div class="space-y-1.5">
+            <div class="space-y-1">
               <label class="block text-xs font-black text-gray-400 uppercase tracking-wider">Last Name</label>
               <div class="relative group">
-                <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 group-focus-within:text-[#0A1128] transition-colors"><Signature class="w-4 h-4" /></span>
-                <input v-model="form.last_name" type="text" placeholder="Doe" required class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-semibold text-base sm:text-sm transition shadow-2xs" />
-              </div>
-            </div>
-            
-            <div class="sm:col-span-2 space-y-1.5">
-              <label class="block text-xs font-black text-gray-400 uppercase tracking-wider">Street Address / Landmark</label>
-              <div class="relative group">
-                <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 group-focus-within:text-[#0A1128] transition-colors"><MapPin class="w-4 h-4" /></span>
-                <input v-model="form.street_address" type="text" placeholder="e.g., No 5, Opposite Central Mosque" required class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-semibold text-base sm:text-sm transition shadow-2xs" />
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400 group-focus-within:text-[#0A1128] transition-colors"><Signature class="w-4 h-4" /></span>
+                <input v-model="form.last_name" type="text" placeholder="Doe" required class="w-full pl-10 pr-4 py-3 bg-gray-50/80 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-semibold text-xs transition shadow-2xs" />
               </div>
             </div>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="space-y-1.5">
+          <div class="space-y-1">
+            <label class="block text-xs font-black text-gray-400 uppercase tracking-wider">Street Address / Landmark</label>
+            <div class="relative group">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400 group-focus-within:text-[#0A1128] transition-colors"><MapPin class="w-4 h-4" /></span>
+              <input v-model="form.street_address" type="text" placeholder="e.g., No 5, Opposite Central Mosque" required class="w-full pl-10 pr-4 py-3 bg-gray-50/80 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-semibold text-xs transition shadow-2xs" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="space-y-1">
               <label class="block text-xs font-black text-gray-400 uppercase tracking-wider">Email Address</label>
               <div class="relative group">
-                <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 group-focus-within:text-[#0A1128] transition-colors"><Mail class="w-4 h-4" /></span>
-                <input v-model="form.email" type="email" placeholder="name@domain.com" required class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-semibold text-base sm:text-sm transition shadow-2xs" />
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400 group-focus-within:text-[#0A1128] transition-colors"><Mail class="w-4 h-4" /></span>
+                <input v-model="form.email" type="email" placeholder="name@domain.com" required class="w-full pl-10 pr-4 py-3 bg-gray-50/80 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-semibold text-xs transition shadow-2xs" />
               </div>
             </div>
-            <div class="space-y-1.5">
+            <div class="space-y-1">
               <label class="block text-xs font-black text-gray-400 uppercase tracking-wider">Mobile Line</label>
               <div class="relative group">
-                <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 group-focus-within:text-[#0A1128] transition-colors"><Phone class="w-4 h-4" /></span>
-                <input v-model="form.phone_number" type="tel" placeholder="08012345678" required class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-semibold text-base sm:text-sm transition shadow-2xs" />
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400 group-focus-within:text-[#0A1128] transition-colors"><Phone class="w-4 h-4" /></span>
+                <input v-model="form.phone_number" type="tel" placeholder="08012345678" required class="w-full pl-10 pr-4 py-3 bg-gray-50/80 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-semibold text-xs transition shadow-2xs" />
               </div>
             </div>
           </div>
 
           <!-- Cascading State and Location Dropdowns -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="space-y-1.5">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="space-y-1">
               <label class="block text-xs font-black text-gray-400 uppercase tracking-wider">State</label>
               <div class="relative group">
-                <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 group-focus-within:text-[#0A1128] transition-colors">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400 group-focus-within:text-[#0A1128] transition-colors">
                   <Loader2 v-if="fetchingLocations" class="w-4 h-4 animate-spin" />
                   <MapPin v-else class="w-4 h-4" />
                 </span>
@@ -241,66 +312,64 @@ const handleOnboardingSubmit = async () => {
                   v-model="selectedState" 
                   required 
                   :disabled="fetchingLocations || uniqueStates.length === 0"
-                  class="w-full pl-11 pr-10 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-bold text-base sm:text-sm appearance-none cursor-pointer shadow-2xs disabled:opacity-70 disabled:cursor-not-allowed"
+                  class="w-full pl-10 pr-8 py-3 bg-gray-50/80 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-bold text-xs appearance-none cursor-pointer shadow-2xs disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                   <option value="" disabled>{{ fetchingLocations ? 'Loading...' : 'Select State' }}</option>
                   <option v-for="state in uniqueStates" :key="state" :value="state">
                     {{ state }}
                   </option>
                 </select>
-                <span class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-gray-400 text-xs">▼</span>
+                <span class="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-gray-400 text-[10px]">▼</span>
               </div>
             </div>
 
-            <div class="space-y-1.5">
+            <div class="space-y-1">
               <label class="block text-xs font-black text-gray-400 uppercase tracking-wider">Location Hub</label>
               <div class="relative group">
-                <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 group-focus-within:text-[#0A1128] transition-colors">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400 group-focus-within:text-[#0A1128] transition-colors">
                   <MapPin class="w-4 h-4" />
                 </span>
                 <select 
                   v-model="form.base_location" 
                   required 
                   :disabled="!selectedState || filteredLocations.length === 0"
-                  class="w-full pl-11 pr-10 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-bold text-base sm:text-sm appearance-none cursor-pointer shadow-2xs disabled:opacity-70 disabled:cursor-not-allowed"
+                  class="w-full pl-10 pr-8 py-3 bg-gray-50/80 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-bold text-xs appearance-none cursor-pointer shadow-2xs disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                   <option value="" disabled>{{ !selectedState ? 'Select state first' : 'Select area' }}</option>
                   <option v-for="loc in filteredLocations" :key="loc.id" :value="loc.id">
                     {{ loc.name }}
                   </option>
                 </select>
-                <span class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-gray-400 text-xs">▼</span>
+                <span class="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-gray-400 text-[10px]">▼</span>
               </div>
             </div>
           </div>
 
           <!-- Referral Code Field -->
-          <div class="space-y-1.5">
+          <div class="space-y-1">
             <label class="block text-xs font-black text-gray-400 uppercase tracking-wider">Referral Code (Optional)</label>
             <div class="relative group">
-              <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 group-focus-within:text-[#0A1128] transition-colors"><Sparkles class="w-4 h-4" /></span>
-              <input v-model="form.referral_code" type="text" placeholder="e.g., AIKA-X7Y8Z9" class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-semibold text-base sm:text-sm transition shadow-2xs uppercase" />
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400 group-focus-within:text-[#0A1128] transition-colors"><Sparkles class="w-4 h-4" /></span>
+              <input v-model="form.referral_code" type="text" placeholder="e.g., AIKA-X7Y8Z9" class="w-full pl-10 pr-4 py-3 bg-gray-50/80 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-semibold text-xs transition shadow-2xs uppercase" />
             </div>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-dashed border-gray-200">
-            <div class="space-y-1.5">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-dashed border-gray-200">
+            <div class="space-y-1">
               <label class="block text-xs font-black text-gray-400 uppercase tracking-wider">Access Password</label>
               <div class="relative group">
-                <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 group-focus-within:text-[#0A1128] transition-colors"><Lock class="w-4 h-4" /></span>
-                
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400 group-focus-within:text-[#0A1128] transition-colors"><Lock class="w-4 h-4" /></span>
                 <input 
                   v-model="form.password" 
                   :type="showPassword ? 'text' : 'password'" 
                   placeholder="Min 8 characters" 
                   required 
-                  class="w-full pl-11 pr-12 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-semibold text-base sm:text-sm transition shadow-2xs" 
+                  class="w-full pl-10 pr-10 py-3 bg-gray-50/80 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-semibold text-xs transition shadow-2xs" 
                 />
-                
                 <button 
                   @click="showPassword = !showPassword" 
                   type="button" 
-                  class="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-[#0A1128] transition border-0 bg-transparent cursor-pointer focus:outline-none"
+                  class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-[#0A1128] transition border-0 bg-transparent cursor-pointer focus:outline-none"
                 >
                   <EyeOff v-if="showPassword" class="w-4 h-4" />
                   <Eye v-else class="w-4 h-4" />
@@ -308,23 +377,21 @@ const handleOnboardingSubmit = async () => {
               </div>
             </div>
             
-            <div class="space-y-1.5">
+            <div class="space-y-1">
               <label class="block text-xs font-black text-gray-400 uppercase tracking-wider">Confirm Password</label>
               <div class="relative group">
-                <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 group-focus-within:text-[#0A1128] transition-colors"><ShieldCheck class="w-4 h-4" /></span>
-                
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400 group-focus-within:text-[#0A1128] transition-colors"><ShieldCheck class="w-4 h-4" /></span>
                 <input 
                   v-model="form.confirm_password" 
                   :type="showConfirmPassword ? 'text' : 'password'" 
                   placeholder="Re-type password" 
                   required 
-                  class="w-full pl-11 pr-12 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-semibold text-base sm:text-sm transition shadow-2xs" 
+                  class="w-full pl-10 pr-10 py-3 bg-gray-50/80 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-semibold text-xs transition shadow-2xs" 
                 />
-                
                 <button 
                   @click="showConfirmPassword = !showConfirmPassword" 
                   type="button" 
-                  class="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-[#0A1128] transition border-0 bg-transparent cursor-pointer focus:outline-none"
+                  class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-[#0A1128] transition border-0 bg-transparent cursor-pointer focus:outline-none"
                 >
                   <EyeOff v-if="showConfirmPassword" class="w-4 h-4" />
                   <Eye v-else class="w-4 h-4" />
@@ -333,41 +400,43 @@ const handleOnboardingSubmit = async () => {
             </div>
           </div>
 
-          <div class="flex items-start pt-2">
+          <div class="flex items-start pt-1">
             <input v-model="form.terms" type="checkbox" id="terms" required class="w-4 h-4 rounded border-gray-300 text-[#0A1128] focus:ring-0 cursor-pointer accent-[#0A1128]" />
-            <label for="terms" class="ml-2.5 text-xs font-bold text-gray-500 select-none cursor-pointer leading-relaxed tracking-tight">
-              I certify that my profile inputs are valid, and I agree to the <NuxtLink to="/terms" class="text-[#0A1128] font-black hover:underline">Terms of Service</NuxtLink> and tracking policies.
+            <label for="terms" class="ml-2.5 text-[11px] font-bold text-gray-500 select-none cursor-pointer leading-tight tracking-tight">
+              I certify inputs are valid, and agree to the <NuxtLink to="/terms" class="text-[#0A1128] font-black hover:underline">Terms of Service</NuxtLink> and tracking policies.
             </label>
           </div>
 
-          <div v-if="errorText" class="text-xs font-black text-rose-600 bg-rose-50 p-4 rounded-2xl border border-rose-200 flex items-center space-x-2.5 shadow-sm">
-            <AlertCircle class="w-4 h-4 shrink-0 text-rose-500" />
-            <span>{{ errorText }}</span>
-          </div>
-
-          <button type="submit" :disabled="isSubmitting" class="w-full bg-[#D4F53C] hover:bg-[#c3e334] text-[#0A1128] font-black py-4 rounded-2xl shadow-lg transition-all transform active:scale-95 mt-4 flex items-center justify-center space-x-2 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed cursor-pointer border-0 outline-none text-xs sm:text-sm uppercase tracking-wider">
-            <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
+          <button type="submit" :disabled="isSubmitting" class="group w-full bg-[#0A1128] hover:bg-[#16224a] text-[#D4F53C] font-black py-3.5 rounded-2xl shadow-xl shadow-[#0A1128]/20 transition-all transform active:scale-98 mt-3 flex items-center justify-center space-x-2 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed cursor-pointer border-0 outline-none text-xs uppercase tracking-wider">
+            <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin text-[#D4F53C]" />
             <template v-else>
               <span>Create Account</span>
-              <ArrowRight class="w-4 h-4 stroke-[3]" />
+              <ArrowRight class="w-4 h-4 stroke-[3] transition-transform group-hover:translate-x-1" />
             </template>
           </button>
         </form>
 
-        <div class="mt-8 pt-6 border-t border-dashed border-gray-200 text-center text-xs text-gray-500 font-bold tracking-tight">
-          Already registered? <NuxtLink to="/auth/login" class="text-[#0A1128] font-black hover:underline ml-1">Login</NuxtLink>
+        <div class="pt-4 border-t border-dashed border-gray-200 text-center text-xs text-gray-500 font-bold tracking-tight space-y-1.5">
+          <div>
+            Already registered? <NuxtLink to="/auth/login" class="text-[#0A1128] font-black hover:underline ml-1">Login</NuxtLink>
+          </div>
+          <div class="text-gray-400 font-medium text-[11px]">
+            Are you a business owner? <NuxtLink to="/merchant/register" class="text-[#0A1128] font-black hover:underline ml-1">Register as a Merchant</NuxtLink>
+          </div>
         </div>
-        <div class="mt-3 pt-3 border-t border-gray-100 text-center text-xs text-gray-400 font-medium tracking-tight">
-          Are you a business owner? <NuxtLink to="/merchant/register" class="text-[#0A1128] font-black hover:underline ml-1">Register as a Merchant</NuxtLink>
-        </div>
-        
+
       </div>
     </main>
+
   </div>
 </template>
 
 <style scoped>
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 </style>

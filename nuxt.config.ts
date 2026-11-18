@@ -18,7 +18,7 @@ export default defineNuxtConfig({
   // Ported Header Configuration Matrix
   app: {
     head: {
-      title: 'Aika | Shop, Send, Ride & Earn — All in One App',
+      title: 'Aika | Shop, Send, Bike Ride & Earn — All in One App',
       htmlAttrs: {
         lang: 'en-NG'
       },

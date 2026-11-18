@@ -55,6 +55,14 @@ const selectedMenuItem = ref<any>(null)
 const activeSelectedOption = ref<any>(null)
 const isMenuModalOpen = ref(false)
 
+const getMediaUrl = (url: string | null) => {
+  if (!url) return ''
+  if (url.startsWith('http://') || url.startsWith('https://')) return url
+  const cleanBase = apiBase.endsWith('/') ? apiBase.slice(0, -1) : apiBase
+  const cleanPath = url.startsWith('/') ? url : `/${url}`
+  return `${cleanBase}${cleanPath}`
+}
+
 const fetchStoreData = async () => {
   pending.value = true
   error.value = false
@@ -83,7 +91,7 @@ const fetchStoreData = async () => {
       company_name: rawData.company_name,
       business_type: rawData.business_type,
       base_location: rawData.base_location,
-      rating: rawData.rating || 5.0,
+      rating: rawData.rating !== undefined && rawData.rating !== null ? rawData.rating : 0.0,
       review_count: rawData.review_count || 0,
       is_currently_open: rawData.is_currently_open,
       ratings_distribution: rawData.ratings_distribution || {},
@@ -127,7 +135,7 @@ const filterSubcategory = (subCatName: string | null): void => {
 const displayRating = computed(() => {
   const rawRating = storePayload.value?.rating
   const parsed = parseFloat(rawRating as any)
-  return isNaN(parsed) ? '5.0' : parsed.toFixed(1)
+  return isNaN(parsed) ? '0.0' : parsed.toFixed(1)
 })
 
 // Unified category list for sidebar (desktop) and chips (mobile)
@@ -160,7 +168,7 @@ const resolveStoreItemImage = (item: any, optionOverride: any = null): string =>
     selectedMenuItem.value?.food_image ||
     ''
   if (!raw) return ''
-  return typeof getMediaUrl === 'function' ? (getMediaUrl(raw) || raw) : raw
+  return getMediaUrl(raw)
 }
 
 const handleAddToCart = (item: any) => {
@@ -579,6 +587,29 @@ const confirmMenuOption = (): void => {
         </div>
       </template>
 
+      <!-- FLOATING MOBILE CART BAR -->
+      <Transition name="slide-up">
+        <div v-if="cartItemCount > 0" class="fixed inset-x-0 bottom-4 z-40 px-4 sm:hidden">
+          <div class="flex items-center justify-between rounded-2xl bg-[#0A1128] px-5 py-3.5 text-white shadow-2xl border border-white/10 backdrop-blur-md">
+            <div class="flex items-center gap-3">
+              <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-[#D4F53C] text-xs font-black text-[#0A1128]">
+                {{ cartItemCount }}
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Total Items</p>
+                <p class="text-sm font-black text-[#D4F53C]">₦{{ cartTotal.toLocaleString() }}</p>
+              </div>
+            </div>
+            <button
+              @click="isCartDrawerOpen = true"
+              class="cursor-pointer rounded-xl bg-[#D4F53C] px-5 py-2.5 text-xs font-black uppercase tracking-wider text-[#0A1128] transition-transform active:scale-95 border-0"
+            >
+              View Cart
+            </button>
+          </div>
+        </div>
+      </Transition>
+
       <!-- MENU OPTION MODAL -->
       <Transition name="fade">
         <MarketplaceMenuOptionModal
@@ -612,6 +643,14 @@ const confirmMenuOption = (): void => {
 .fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 
+.slide-up-enter-active, .slide-up-leave-active {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+.slide-up-enter-from, .slide-up-leave-to {
+  transform: translateY(30px);
+  opacity: 0;
+}
+
 .shimmer {
   background: linear-gradient(90deg, #eef0f3 25%, #f8f9fb 50%, #eef0f3 75%);
   background-size: 200% 100%;
@@ -623,6 +662,6 @@ const confirmMenuOption = (): void => {
 }
 @media (prefers-reduced-motion: reduce) {
   .shimmer { animation: none; }
-  .fade-enter-active, .fade-leave-active { transition: none; }
+  .fade-enter-active, .fade-leave-active, .slide-up-enter-active, .slide-up-leave-active { transition: none; }
 }
 </style>

@@ -1,10 +1,10 @@
 <!-- pages/auth/forgot-password.vue -->
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Mail, ArrowLeft, Loader2, Sparkles, CheckCircle2 } from '@lucide/vue'
+import { Mail, ArrowLeft, Loader2, Sparkles, CheckCircle2, ArrowRight } from '@lucide/vue'
 
 definePageMeta({
-  layout: 'default'
+  layout: false // Full screen layout matching login and registration portals
 })
 
 const config = useRuntimeConfig()
@@ -35,72 +35,130 @@ const handlePasswordResetRequest = async () => {
 </script>
 
 <template>
-  <div class="bg-[#F9FAFB] min-h-screen flex items-center justify-center p-4 font-sans text-[#0A1128] relative overflow-hidden">
-    <!-- Ambient Glow Background Effects -->
-    <div class="absolute top-0 right-0 w-96 h-96 bg-[#D4F53C]/20 rounded-full blur-3xl pointer-events-none"></div>
-    <div class="absolute bottom-0 left-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+  <div class="min-h-screen w-full grid lg:grid-cols-2 font-sans selection:bg-[#D4F53C] selection:text-[#0A1128]">
 
-    <div class="w-full max-w-md bg-white border border-gray-100 rounded-[36px] p-8 shadow-2xl relative z-10 space-y-6 text-left">
-      
-      <!-- Top Navigation back to login -->
-      <div>
-        <NuxtLink to="/auth/login" class="inline-flex items-center space-x-2 text-xs font-black text-gray-400 hover:text-[#0A1128] transition no-underline">
-          <ArrowLeft class="w-4 h-4" />
-          <span>Back to Login</span>
+    <!-- ───────── Left Side: Full Colored Brand Panel ───────── -->
+    <aside class="relative hidden lg:flex flex-col justify-between bg-[#0A1128] p-16 text-white overflow-hidden">
+      <!-- Ambient Background Glows -->
+      <div class="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-[#D4F53C]/10 blur-3xl pointer-events-none"></div>
+      <div class="absolute -bottom-32 -left-32 w-96 h-96 rounded-full bg-blue-500/10 blur-3xl pointer-events-none"></div>
+
+      <div class="relative z-10">
+        <NuxtLink to="/" class="inline-flex items-center space-x-2.5 group no-underline">
+          <div class="w-28 flex items-center justify-center p-1">
+            <img src="/images/logo_white.png" alt="Aika Logo" class="w-full h-full object-contain">
+          </div>
         </NuxtLink>
       </div>
 
-      <!-- Header -->
-      <div class="space-y-2">
-        <span class="inline-flex items-center space-x-1.5 text-[10px] font-black text-[#0A1128] uppercase tracking-widest bg-[#D4F53C] px-3.5 py-1 rounded-full shadow-2xs">
-          <Sparkles class="w-3 h-3" />
-          <span>Account Recovery</span>
+      <div class="relative z-10 space-y-6 my-auto py-12">
+        <span class="inline-block bg-[#D4F53C] text-[#0A1128] font-black text-[10px] uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg">
+          Account Recovery
         </span>
-        <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-[#0A1128]">Forgot Password?</h1>
-        <p class="text-xs text-gray-500 font-medium leading-relaxed">
-          Enter the email address linked to your account and we'll send you a secure link to reset your password.
+        <h2 class="text-5xl font-black leading-tight tracking-tight">
+          Recover access to<br />
+          <span class="text-[#D4F53C]">your Aika account.</span>
+        </h2>
+        <p class="text-gray-300 text-sm leading-relaxed max-w-md font-medium">
+          Don't worry, it happens. We will send a secure token directly to your registered email address to help you log back in.
         </p>
+
+        <ul class="space-y-4 pt-4">
+          <li class="flex items-center gap-3.5 text-xs font-bold text-gray-200">
+            <span class="w-2 h-2 rounded-full bg-[#D4F53C]"></span>
+            Fast &amp; encrypted password reset token delivery
+          </li>
+          <li class="flex items-center gap-3.5 text-xs font-bold text-gray-200">
+            <span class="w-2 h-2 rounded-full bg-[#D4F53C]"></span>
+            Secure link valid for single-use session updates
+          </li>
+          <li class="flex items-center gap-3.5 text-xs font-bold text-gray-200">
+            <span class="w-2 h-2 rounded-full bg-[#D4F53C]"></span>
+            Continuous protection for your storefront &amp; ledger
+          </li>
+        </ul>
       </div>
 
-      <!-- Success State Message -->
-      <div v-if="isSubmitted" class="bg-emerald-50 border border-emerald-100 p-6 rounded-2xl space-y-3 text-center">
-        <CheckCircle2 class="w-10 h-10 text-emerald-600 mx-auto" />
-        <h3 class="text-sm font-black text-[#0A1128]">Check Your Inbox</h3>
-        <p class="text-xs text-gray-600 leading-relaxed">
-          If an account exists for <strong class="text-[#0A1128]">{{ email }}</strong>, you will receive password reset instructions shortly.
-        </p>
-      </div>
+      <p class="relative z-10 text-xs text-gray-400 font-medium">
+        © {{ new Date().getFullYear() }} Aika. All rights reserved.
+      </p>
+    </aside>
 
-      <!-- Request Form -->
-      <form v-else @submit.prevent="handlePasswordResetRequest" class="space-y-4">
-        <div class="space-y-1.5">
-          <label class="block text-[10px] font-black text-gray-400 uppercase tracking-wider">Email Address</label>
-          <div class="relative">
-            <Mail class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input 
-              v-model="email" 
-              type="email" 
-              placeholder="name@example.com" 
-              required 
-              class="w-full bg-gray-50 border border-gray-200 text-[#0A1128] rounded-2xl pl-11 pr-4 py-3 text-xs font-semibold placeholder-gray-400 focus:outline-none focus:border-[#0A1128] focus:bg-white transition shadow-2xs"
-            />
+    <!-- ───────── Right Side: Full White Form Panel ───────── -->
+    <main class="flex flex-col justify-center items-center bg-white p-6 sm:p-12 lg:p-20 min-h-screen lg:min-h-0">
+      <div class="w-full max-w-md mx-auto space-y-8">
+        
+        <!-- Mobile brand mark -->
+        <div class="lg:hidden flex items-center justify-center mb-4">
+          <div class="w-32">
+            <img src="/images/logo.png" alt="Aika Logo" class="w-full object-contain">
           </div>
         </div>
 
-        <div v-if="errorMessage" class="text-xs font-bold text-rose-600 bg-rose-50 p-3.5 rounded-xl border border-rose-100">
-          {{ errorMessage }}
+        <!-- Top Navigation back to login -->
+        <div>
+          <NuxtLink to="/auth/login" class="inline-flex items-center space-x-2 text-xs font-black text-gray-400 hover:text-[#0A1128] transition no-underline">
+            <ArrowLeft class="w-4 h-4" />
+            <span>Back to Login</span>
+          </NuxtLink>
         </div>
 
-        <button 
-          type="submit" 
-          :disabled="isLoading" 
-          class="w-full py-4 bg-[#0A1128] hover:bg-[#152248] text-[#D4F53C] font-black text-xs uppercase tracking-wider rounded-2xl transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border-0 outline-none flex items-center justify-center space-x-2"
-        >
-          <Loader2 v-if="isLoading" class="w-4 h-4 animate-spin text-[#D4F53C]" />
-          <span>{{ isLoading ? 'Sending Link...' : 'Send Reset Instructions' }}</span>
-        </button>
-      </form>
+        <!-- Header -->
+        <header class="space-y-2">
+          <span class="inline-flex items-center space-x-1.5 text-[10px] font-black text-[#0A1128] uppercase tracking-widest bg-[#D4F53C]/40 px-3.5 py-1 rounded-full">
+            <Sparkles class="w-3 h-3" />
+            <span>Account Recovery</span>
+          </span>
+          <h1 class="text-3xl font-black tracking-tight text-[#0A1128]">Forgot Password?</h1>
+          <p class="text-xs sm:text-sm text-gray-500 font-medium leading-relaxed">
+            Enter the email address linked to your account and we'll send you a secure link to reset your password.
+          </p>
+        </header>
 
-    </div>
+        <!-- Success State Message -->
+        <div v-if="isSubmitted" class="bg-emerald-50 border border-emerald-200 p-6 rounded-3xl space-y-3 text-center shadow-sm">
+          <CheckCircle2 class="w-12 h-12 text-emerald-600 mx-auto" />
+          <h3 class="text-sm font-black text-[#0A1128]">Check Your Inbox</h3>
+          <p class="text-xs text-gray-600 leading-relaxed font-medium">
+            If an account exists for <strong class="text-[#0A1128]">{{ email }}</strong>, you will receive password reset instructions shortly.
+          </p>
+        </div>
+
+        <!-- Request Form -->
+        <form v-else @submit.prevent="handlePasswordResetRequest" class="space-y-4">
+          <div class="space-y-1.5">
+            <label class="block text-xs font-black text-gray-400 uppercase tracking-wider">Email Address</label>
+            <div class="relative group">
+              <Mail class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[#0A1128] transition-colors" />
+              <input 
+                v-model="email" 
+                type="email" 
+                placeholder="name@example.com" 
+                required 
+                class="w-full bg-gray-50/80 border border-gray-200 text-[#0A1128] rounded-2xl pl-11 pr-4 py-3.5 text-xs font-semibold placeholder-gray-400 focus:outline-none focus:border-[#0A1128] focus:bg-white transition shadow-2xs"
+              />
+            </div>
+          </div>
+
+          <div v-if="errorMessage" class="text-xs font-bold text-rose-600 bg-rose-50 p-4 rounded-2xl border border-rose-200 shadow-sm">
+            {{ errorMessage }}
+          </div>
+
+          <button 
+            type="submit" 
+            :disabled="isLoading" 
+            class="group w-full py-4 bg-[#0A1128] hover:bg-[#16224a] text-[#D4F53C] font-black text-xs uppercase tracking-wider rounded-2xl transition shadow-xl shadow-[#0A1128]/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border-0 outline-none flex items-center justify-center space-x-2 active:scale-95 mt-2"
+          >
+            <Loader2 v-if="isLoading" class="w-4 h-4 animate-spin text-[#D4F53C]" />
+            <template v-else>
+              <span>Send Reset</span>
+              <ArrowRight class="w-4 h-4 stroke-[3] transition-transform group-hover:translate-x-1" />
+            </template>
+          </button>
+        </form>
+
+      </div>
+    </main>
+
   </div>
 </template>

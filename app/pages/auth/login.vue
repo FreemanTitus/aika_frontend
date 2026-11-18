@@ -1,92 +1,94 @@
 <!-- pages/login.vue -->
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter, useRoute } from '#app'
 import {
-  Lock, 
-  LogIn,
-  Bike,
-  Building2, 
-  Mail,
-  Eye,
-  EyeOff
+  Lock, LogIn, Bike, Building2, Mail, Eye, EyeOff, ArrowRight
 } from '@lucide/vue'
+
+definePageMeta({
+  layout: false // Full screen layout without default layout wrappers
+})
 
 const config = useRuntimeConfig()
 const apiBase = config.public.apiBase
-
 const router = useRouter()
 const route = useRoute()
 
-const isSecureContext = import.meta.client ? window.location.protocol === 'https:' : process.env.NODE_ENV === 'production'
-const authToken = useCookie('auth_token', { maxAge: 60 * 60 * 24 * 7, sameSite: 'lax', secure: isSecureContext })
-const userRole = useCookie('user_role')
-const profileId = useCookie('profile_id')
-const businessType = useCookie('business_type')
+const isSecureContext = import.meta.client
+  ? window.location.protocol === 'https:'
+  : process.env.NODE_ENV === 'production'
+
+const authToken      = useCookie('auth_token', { maxAge: 60 * 60 * 24 * 7, sameSite: 'lax', secure: isSecureContext })
+const userRole       = useCookie('user_role')
+const profileId      = useCookie('profile_id')
+const businessType   = useCookie('business_type')
 const userLocationId = useCookie('customer_location_id')
 
 type PortalType = 'client' | 'rider'
 const portalType = ref<PortalType>('client')
 
-const username = ref<string>('')
-const password = ref<string>('')
-const rememberMe = ref<boolean>(false)
-const showPassword = ref<boolean>(false)
-
+const username = ref('')
+const password = ref('')
+const rememberMe = ref(false)
+const showPassword = ref(false)
 const errorMessage = ref<string | null>(null)
-const isSubmitting = ref<boolean>(false)
+const isSubmitting = ref(false)
 
-const switchPortal = (type: PortalType): void => {
+const isClient = computed(() => portalType.value === 'client')
+
+const switchPortal = (type: PortalType) => {
+  if (portalType.value === type) return
   portalType.value = type
   username.value = ''
   password.value = ''
   errorMessage.value = null
   showPassword.value = false
 }
-// ACCT_qfbue31iqa0vzxi
-const handleLoginSubmit = async (): Promise<void> => {
+
+const handleLoginSubmit = async () => {
+  if (isSubmitting.value) return
   isSubmitting.value = true
   errorMessage.value = null
 
   try {
-    const targetEndpoint = portalType.value === 'rider' 
-      ? `${apiBase}/api/v1/auth/login/rider` 
+    const endpoint = portalType.value === 'rider'
+      ? `${apiBase}/api/v1/auth/login/rider`
       : `${apiBase}/api/v1/auth/login`
 
-    const payload = {
-      email: username.value,
-      password: password.value,
-      remember_me: rememberMe.value
-    }
-    
-    const response: any = await $fetch(targetEndpoint, {
+    const response: any = await $fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'ngrok-skip-browser-warning': 'true'
       },
-      body: payload
+      body: {
+        email: username.value,
+        password: password.value,
+        remember_me: rememberMe.value
+      }
     })
 
-    if (response?.access_token) {
-      authToken.value = response.access_token
-      userRole.value = response.role
-      profileId.value = response.profile_id
-      businessType.value = response.business_type
-      userLocationId.value = response.base_location
-      
-      // Only same-site paths are accepted as a redirect target (blocks //evil.com and https://evil.com).
-      const rawRedirect = Array.isArray(route.query.redirect) ? route.query.redirect[0] : route.query.redirect
-      const redirectPath = typeof rawRedirect === 'string' && /^\/(?![\/\\])/.test(rawRedirect) ? rawRedirect : ''
-      const target = redirectPath || response.routing_target || '/marketplace'
-
-      await router.push(target)
-    } else {
+    if (!response?.access_token) {
       throw new Error('Invalid authentication response.')
     }
-    
+
+    authToken.value      = response.access_token
+    userRole.value       = response.role
+    profileId.value      = response.profile_id
+    businessType.value   = response.business_type
+    userLocationId.value = response.base_location
+
+    const raw = Array.isArray(route.query.redirect) ? route.query.redirect[0] : route.query.redirect
+    const redirectPath = typeof raw === 'string' && /^\/(?![\/\\])/.test(raw) ? raw : ''
+    const target = redirectPath || response.routing_target || '/marketplace'
+
+    await router.push(target)
   } catch (err: any) {
-    errorMessage.value = err?.data?.detail || err?.data?.error || 'Authentication operation rejected by gateway access channel.'
+    errorMessage.value =
+      err?.data?.detail ||
+      err?.data?.error ||
+      'Authentication failed. Please check your credentials and try again.'
   } finally {
     isSubmitting.value = false
   }
@@ -94,149 +96,227 @@ const handleLoginSubmit = async (): Promise<void> => {
 </script>
 
 <template>
-  <div class="min-h-[85vh] flex flex-col justify-center bg-gray-50/50 py-12 px-4 sm:px-6 lg:px-8 border-b border-gray-100">
-    <main class="max-w-md w-full mx-auto">
-      <div class="bg-white p-8 sm:p-10 rounded-[32px] shadow-xl border border-gray-100 relative overflow-hidden">
-          
-          <!-- Decorative Top Glow Accent -->
-          <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#0A1128] via-[#D4F53C] to-[#0A1128]"></div>
+  <div class="min-h-screen w-full grid lg:grid-cols-2 font-sans selection:bg-[#D4F53C] selection:text-[#0A1128]">
 
-          <!-- Header Section -->
-          <div class="text-center mb-8">
-              <span class="bg-[#D4F53C]/20 text-[#0A1128] font-black px-3.5 py-1 rounded-full text-[10px] uppercase tracking-widest inline-block shadow-2xs">
-                  Secure Gateway
-              </span>
-              
-              <h1 class="text-2xl sm:text-3xl font-black text-[#0A1128] tracking-tight mt-3">
-                {{ portalType === 'client' ? 'Welcome Back' : 'Field Operations' }}
-              </h1>
-              
-              <p class="text-gray-500 text-xs sm:text-sm mt-2 font-medium leading-relaxed max-w-xs mx-auto">
-                {{ portalType === 'client' 
-                  ? 'Access your account dashboard, ledger, and services' 
-                  : 'Sign in to update operational status and review dispatch logs' 
-                }}
-              </p>
+    <!-- ───────── Left Side: Full Colored Brand Panel ───────── -->
+    <aside class="relative hidden lg:flex flex-col justify-between bg-[#0A1128] p-16 text-white overflow-hidden">
+      <!-- Ambient Background Glows -->
+      <div class="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-[#D4F53C]/10 blur-3xl pointer-events-none"></div>
+      <div class="absolute -bottom-32 -left-32 w-96 h-96 rounded-full bg-blue-500/10 blur-3xl pointer-events-none"></div>
+
+      <div class="relative z-10">
+        <NuxtLink to="/" class="inline-flex items-center space-x-2.5 group no-underline">
+          <div class="w-28 flex items-center justify-center p-1">
+            <img src="/images/logo_white.png" alt="Aika Logo" class="w-full h-full object-contain">
           </div>
+        </NuxtLink>
+      </div>
 
-          <!-- Toggle Switch Tabs -->
-          <div class="grid grid-cols-2 gap-2 p-1.5 bg-gray-100 rounded-2xl mb-8">
-              <button 
-                @click="switchPortal('client')"
-                type="button"
-                :class="[portalType === 'client' ? 'bg-[#0A1128] text-white shadow-md' : 'text-gray-500 hover:text-[#0A1128]']"
-                class="py-3 rounded-xl font-black text-center transition-all flex items-center justify-center space-x-2 text-xs sm:text-sm cursor-pointer border-0 outline-none"
-              >
-                  <Building2 :class="[portalType === 'client' ? 'text-[#D4F53C]' : 'text-gray-400']" class="w-4 h-4 transition-colors" />
-                  <span>Client Login</span>
-              </button>
-              <button 
-                @click="switchPortal('rider')"
-                type="button"
-                :class="[portalType === 'rider' ? 'bg-[#0A1128] text-white shadow-md' : 'text-gray-500 hover:text-[#0A1128]']"
-                class="py-3 rounded-xl font-black text-center transition-all flex items-center justify-center space-x-2 text-xs sm:text-sm cursor-pointer border-0 outline-none"
-              >
-                  <Bike :class="[portalType === 'rider' ? 'text-[#D4F53C]' : 'text-gray-400']" class="w-4 h-4 transition-colors" />
-                  <span>Rider Login</span>
-              </button>
+      <div class="relative z-10 space-y-6 my-auto py-12">
+        <span class="inline-block bg-[#D4F53C] text-[#0A1128] font-black text-[10px] uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg">
+          Operations Portal
+        </span>
+        <h2 class="text-5xl font-black leading-tight tracking-tight">
+          Sign in to your<br />
+          <span class="text-[#D4F53C]">logistics hub.</span>
+        </h2>
+        <p class="text-gray-300 text-sm leading-relaxed max-w-md font-medium">
+          Manage live deliveries, track vendor storefronts, and coordinate instant fleet dispatches seamlessly across the network.
+        </p>
+
+        <ul class="space-y-4 pt-4">
+          <li class="flex items-center gap-3.5 text-xs font-bold text-gray-200">
+            <span class="w-2 h-2 rounded-full bg-[#D4F53C]"></span>
+            Real-time multi-vendor &amp; rider tracking
+          </li>
+          <li class="flex items-center gap-3.5 text-xs font-bold text-gray-200">
+            <span class="w-2 h-2 rounded-full bg-[#D4F53C]"></span>
+            Secure escrow payment splits &amp; ledgers
+          </li>
+          <li class="flex items-center gap-3.5 text-xs font-bold text-gray-200">
+            <span class="w-2 h-2 rounded-full bg-[#D4F53C]"></span>
+            Enterprise-grade session authentication
+          </li>
+        </ul>
+      </div>
+
+      <p class="relative z-10 text-xs text-gray-400 font-medium">
+        © {{ new Date().getFullYear() }} Aika. All rights reserved.
+      </p>
+    </aside>
+
+    <!-- ───────── Right Side: Full White Form Panel ───────── -->
+    <main class="flex flex-col justify-center items-center bg-white p-6 sm:p-12 lg:p-20 min-h-screen lg:min-h-0">
+      <div class="w-full max-w-md mx-auto space-y-8">
+        
+        <!-- Mobile brand mark -->
+        <div class="lg:hidden flex items-center justify-center mb-6">
+          <div class="w-32">
+            <img src="/images/logo.png" alt="Aika Logo" class="w-full object-contain">
           </div>
+        </div>
 
-          <!-- Error Message Banner -->
-          <div v-if="errorMessage" class="bg-rose-50 text-rose-700 border border-rose-200 p-4 rounded-2xl text-xs font-bold mb-6 flex items-center space-x-2.5 shadow-sm">
-            <span class="text-sm">⚠</span>
+        <!-- Header -->
+        <header class="text-center lg:text-left space-y-2">
+          <span class="inline-block text-[10px] font-black uppercase tracking-[0.15em] text-[#0A1128] bg-[#D4F53C]/40 px-3.5 py-1 rounded-full">
+            Secure Gateway
+          </span>
+          <h1 class="text-3xl sm:text-4xl font-black text-[#0A1128] tracking-tight">
+            {{ isClient ? 'Welcome back' : 'Field Operations' }}
+          </h1>
+          <p class="text-xs sm:text-sm text-gray-500 font-medium">
+            {{ isClient
+              ? 'Access your consumer dashboard, orders, and services.'
+              : 'Update your field status and review incoming delivery logs.' }}
+          </p>
+        </header>
+
+        <!-- Portal toggle -->
+        <div
+          role="tablist"
+          aria-label="Portal type"
+          class="grid grid-cols-2 gap-1.5 p-1.5 bg-gray-100 rounded-2xl shadow-inner"
+        >
+          <button
+            role="tab"
+            :aria-selected="isClient"
+            type="button"
+            @click="switchPortal('client')"
+            :class="isClient ? 'bg-[#0A1128] text-[#D4F53C] shadow-md' : 'text-gray-500 hover:text-[#0A1128]'"
+            class="flex items-center justify-center gap-2 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer border-0 outline-none"
+          >
+            <Building2 class="w-4 h-4" />
+            <span>Client / Vendor</span>
+          </button>
+          <button
+            role="tab"
+            :aria-selected="!isClient"
+            type="button"
+            @click="switchPortal('rider')"
+            :class="!isClient ? 'bg-[#0A1128] text-[#D4F53C] shadow-md' : 'text-gray-500 hover:text-[#0A1128]'"
+            class="flex items-center justify-center gap-2 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer border-0 outline-none"
+          >
+            <Bike class="w-4 h-4" />
+            <span>Rider Fleet</span>
+          </button>
+        </div>
+
+        <!-- Error banner -->
+        <Transition
+          enter-active-class="transition duration-200 ease-out"
+          enter-from-class="opacity-0 -translate-y-1"
+          leave-active-class="transition duration-150 ease-in"
+          leave-to-class="opacity-0"
+        >
+          <div
+            v-if="errorMessage"
+            role="alert"
+            class="flex items-start gap-2.5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-bold text-rose-700"
+          >
+            <span class="mt-px">⚠</span>
             <span>{{ errorMessage }}</span>
           </div>
+        </Transition>
 
-          <!-- Login Form -->
-          <form @submit.prevent="handleLoginSubmit" class="space-y-5">
-              
-              <!-- Email Input Field -->
-              <div>
-                  <label class="block text-xs font-black text-gray-400 uppercase tracking-wider mb-1.5">
-                    Email Address
-                  </label>
-                  <div class="relative group">
-                      <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 group-focus-within:text-[#0A1128] transition-colors duration-200">
-                        <Mail class="w-4 h-4" />
-                      </span>
-                      <input 
-                        v-model="username"
-                        type="email" 
-                        placeholder="name@example.com" 
-                        required 
-                        class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-semibold transition duration-200 text-base sm:text-sm placeholder-gray-400 shadow-2xs"
-                      >
-                  </div>
-              </div>
-
-              <!-- Password Input Field -->
-              <div>
-                  <div class="flex justify-between items-center mb-1.5">
-                      <label class="block text-xs font-black text-gray-400 uppercase tracking-wider">Password</label>
-                      <NuxtLink to="/auth/forgot-password" class="text-xs font-black text-[#0A1128] hover:text-[#D4F53C] hover:underline tracking-tight transition-colors">Forgot password?</NuxtLink>
-                  </div>
-                  <div class="relative group">
-                      <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 group-focus-within:text-[#0A1128] transition-colors duration-200">
-                          <Lock class="w-4 h-4" />
-                      </span>
-                      
-                      <input 
-                        v-model="password"
-                        :type="showPassword ? 'text' : 'password'" 
-                        required 
-                        placeholder="••••••••" 
-                        class="w-full pl-11 pr-12 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-semibold transition duration-200 text-base sm:text-sm placeholder-gray-400 shadow-2xs"
-                      >
-                      
-                      <button 
-                        @click="showPassword = !showPassword"
-                        type="button"
-                        class="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-[#0A1128] border-0 bg-transparent cursor-pointer focus:outline-none"
-                      >
-                        <EyeOff v-if="showPassword" class="w-4 h-4" />
-                        <Eye v-else class="w-4 h-4" />
-                      </button>
-                  </div>
-              </div>
-
-              <!-- Remember Me Checkbox -->
-              <div class="flex items-center pt-1">
-                  <input 
-                      id="remember_me" 
-                      type="checkbox" 
-                      v-model="rememberMe"
-                      class="w-4 h-4 text-[#0A1128] border-gray-300 rounded focus:ring-0 cursor-pointer accent-[#0A1128]"
-                  >
-                  <label class="ml-2.5 text-xs font-bold text-gray-500 select-none cursor-pointer tracking-tight" for="remember_me">
-                      Keep me logged in on this device
-                  </label>
-              </div>
-
-              <!-- Submit Button -->
-              <button 
-                type="submit" 
-                :disabled="isSubmitting"
-                class="w-full bg-[#D4F53C] hover:bg-[#c3e334] disabled:bg-gray-100 disabled:text-gray-400 text-[#0A1128] font-black py-4 rounded-2xl shadow-lg transition transform active:scale-95 mt-2 flex items-center justify-center space-x-2 cursor-pointer text-xs sm:text-sm uppercase tracking-wider border-0 outline-none"
-              >
-                  <span>{{ isSubmitting ? 'Authenticating Gateway...' : (portalType === 'client' ? 'Sign In' : 'Verify Rider Account') }}</span>
-                  <LogIn class="w-4 h-4" />
-              </button>
-          </form>
-
-          <!-- Footer Action Callout -->
-          <div class="mt-8 pt-6 border-t border-dashed border-gray-200 text-center text-xs text-gray-500 font-bold tracking-tight">
-              <div v-if="portalType === 'client'">
-                New user? 
-                <NuxtLink to="/auth/register" class="text-[#0A1128] font-black hover:underline ml-1">
-                  Create an account
-                </NuxtLink>
-              </div>
-              <div v-else>
-                <span>Want to ride with us? Contact our central admin command.</span>
-              </div>
+        <!-- Form -->
+        <form @submit.prevent="handleLoginSubmit" class="space-y-4" novalidate>
+          <!-- Email -->
+          <div class="space-y-1.5">
+            <label for="email" class="block text-xs font-black text-gray-400 uppercase tracking-wider">
+              Email Address
+            </label>
+            <div class="relative">
+              <Mail class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                id="email"
+                v-model="username"
+                type="email"
+                autocomplete="email"
+                placeholder="name@example.com"
+                required
+                class="w-full pl-11 pr-4 py-3.5 bg-gray-50/80 border border-gray-200 rounded-2xl text-xs font-semibold text-[#0A1128] placeholder:text-gray-400 placeholder:font-normal outline-none transition focus:bg-white focus:border-[#0A1128] focus:ring-2 focus:ring-[#0A1128]/10"
+              />
+            </div>
           </div>
-          
+
+          <!-- Password -->
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label for="password" class="block text-xs font-black text-gray-400 uppercase tracking-wider">
+                Password
+              </label>
+              <NuxtLink
+                to="/auth/forgot-password"
+                class="text-xs font-black text-[#0A1128] hover:underline underline-offset-2"
+              >
+                Forgot Password?
+              </NuxtLink>
+            </div>
+            <div class="relative">
+              <Lock class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                id="password"
+                v-model="password"
+                :type="showPassword ? 'text' : 'password'"
+                autocomplete="current-password"
+                placeholder="••••••••"
+                required
+                class="w-full pl-11 pr-12 py-3.5 bg-gray-50/80 border border-gray-200 rounded-2xl text-xs font-semibold text-[#0A1128] placeholder:text-gray-400 placeholder:font-normal outline-none transition focus:bg-white focus:border-[#0A1128] focus:ring-2 focus:ring-[#0A1128]/10"
+              />
+              <button
+                type="button"
+                @click="showPassword = !showPassword"
+                :aria-label="showPassword ? 'Hide password' : 'Show password'"
+                class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#0A1128] transition-colors cursor-pointer bg-transparent border-0"
+              >
+                <EyeOff v-if="showPassword" class="w-4 h-4" />
+                <Eye v-else class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <!-- Remember me -->
+          <label class="flex items-center gap-2.5 cursor-pointer select-none pt-1">
+            <input
+              v-model="rememberMe"
+              type="checkbox"
+              class="w-4 h-4 rounded border-gray-300 text-[#0A1128] focus:ring-[#0A1128] cursor-pointer"
+            />
+            <span class="text-xs font-bold text-gray-500">Keep me logged in on this device</span>
+          </label>
+
+          <!-- Submit -->
+          <button
+            type="submit"
+            :disabled="isSubmitting"
+            class="group w-full flex items-center justify-center gap-2 bg-[#0A1128] hover:bg-[#16224a] disabled:opacity-70 disabled:cursor-not-allowed text-[#D4F53C] font-black text-xs uppercase tracking-wider py-4 rounded-2xl shadow-xl shadow-[#0A1128]/20 transition-all active:scale-[0.99] cursor-pointer border-0 outline-none mt-2"
+          >
+            <template v-if="!isSubmitting">
+              <span>{{ isClient ? 'Sign In to Portal' : 'Login Rider Fleet' }}</span>
+              <ArrowRight class="w-4 h-4 transition-transform group-hover:translate-x-1" />
+            </template>
+            <template v-else>
+              <span class="w-4 h-4 rounded-full border-2 border-[#D4F53C]/30 border-t-[#D4F53C] animate-spin"></span>
+              <span>Authenticating…</span>
+            </template>
+          </button>
+        </form>
+
+        <!-- Footer -->
+        <p class="text-center text-xs text-gray-500 font-medium">
+          <template v-if="isClient">
+            New to Aika?
+            <NuxtLink to="/auth/register" class="text-[#0A1128] font-black hover:underline underline-offset-2 ml-1">
+              Create an Account
+            </NuxtLink>
+          </template>
+          <template v-else>
+            Want to ride with our fleet? Contact central operations admin.
+          </template>
+        </p>
+
       </div>
     </main>
+
   </div>
 </template>

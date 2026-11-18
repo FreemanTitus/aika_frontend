@@ -119,7 +119,7 @@ onMounted(() => {
                 to="/auth/login" 
                 class="bg-[#0A1128] text-white px-5 py-2.5 rounded-xl font-bold hover:bg-[#D4F53C] hover:text-[#0A1128] transition shadow-md text-sm cursor-pointer"
               >
-                Portal Login
+                Login
               </NuxtLink>
           </div>
 

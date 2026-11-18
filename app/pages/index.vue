@@ -1,48 +1,81 @@
-<!-- pages/index.vue -->
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { MessageSquarePlus, CheckCircle2, AlertCircle, ShieldCheck, Zap, Bike, Store, TrendingUp, Clock, ArrowRight, Star, Sparkles } from '@lucide/vue'
+import {
+  MessageSquarePlus,
+  CheckCircle2,
+  AlertCircle,
+  Bike,
+  ArrowRight,
+  Star,
+  Sparkles,
+  Search,
+  Utensils,
+  ShoppingBag
+} from '@lucide/vue'
 
-// SEO HEAD META TAG COMPOSITION INTEGRATION
+definePageMeta({
+  layout: 'default'
+})
+// Import extracted components
+import FeaturedMeals from '~/components/public/FeaturedMeals.vue'
+import PopularRestaurants from '~/components/public/PopularRestaurants.vue'
+import ShopLocalStores from '~/components/public/ShopLocalStores.vue'
+
 useHead({
+  title: 'Aika | Food Delivery, Restaurants, Shopping & Instant Bike Runs',
   meta: [
-    { 
-      name: 'description', 
-      content: 'Aika Limited is a multi-service digital platform providing efficient bike delivery, logistics, food delivery, shopping, and general errand services. We leverage technology to connect customers with fast, reliable local fulfillment and transportation solutions across Nigeria.' 
+    {
+      name: 'description',
+      content:
+        'Order hot meals from top restaurants, shop local retail stores, and book instant bike deliveries across town with Aika.'
     }
   ]
 })
 
 const config = useRuntimeConfig()
 const apiBase = config.public.apiBase
+const router = useRouter()
 
-const reviews = ref<any[]>([])
-const faqs = ref<any[]>([])
+// ============================================================================
+// STATE FOR LIVE FEED DATA
+// ============================================================================
+const featuredMeals = ref<any[]>([])
+const mealCategories = ref<any[]>([])
+const restaurants = ref<any[]>([])
+const isLoadingFeed = ref(true)
 
-// Custom Feedback Modal State
-const feedbackModal = ref({
-  isOpen: false,
-  title: '',
-  message: '',
-  type: 'success' as 'success' | 'error'
-})
+// ============================================================================
+// 1. HERO SLIDER & QUICK SEARCH STATE
+// ============================================================================
+const searchQuery = ref('')
 
-// 1. Hero Image Slider Background State & Timer
+const handleQuickSearch = () => {
+  const q = searchQuery.value.trim()
+  if (q) {
+    router.push({ path: '/marketplace', query: { q } })
+  } else {
+    router.push('/marketplace')
+  }
+}
+
 const heroSlides = [
   {
-    image: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?q=75&w=1200&auto=format&fit=crop',
-    tag: '⚡ Instant Bike Transit',
-    title: 'Fast Cross-Town Rides'
+    image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1400&auto=format&fit=crop',
+    badge: '🔥 Hot & Fresh in 25 Mins',
+    headline: 'Craving Something Delicious?',
+    highlight: 'Delivered Hot to Your Door.'
   },
   {
-    image: 'https://images.unsplash.com/photo-1526367790999-0150786686a2?q=75&w=1200&auto=format&fit=crop',
-    tag: 'Secure Package Delivery',
-    title: 'Real-Time Logistics Tracking'
+    image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1400&auto=format&fit=crop',
+    badge: '🛍️ Local E-Commerce & Marts',
+    headline: 'Shop Groceries, Gadgets & More.',
+    highlight: 'Same-Hour Dispatch.'
   },
   {
-    image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=75&w=1200&auto=format&fit=crop',
-    tag: 'On-Demand Food',
-    title: 'Hot Meals Delivered Fresh'
+    image: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?q=80&w=1400&auto=format&fit=crop',
+    badge: '⚡ Instant Bike Transit',
+    headline: 'Send Packages or Catch a Ride.',
+    highlight: 'Zero Delays Across Town.'
   }
 ]
 
@@ -57,20 +90,27 @@ const prevSlide = () => {
   currentSlideIndex.value = (currentSlideIndex.value - 1 + heroSlides.length) % heroSlides.length
 }
 
-// 2. Horizontal Testimonial Rail Carousel Slider Drivers
+// ============================================================================
+// 2. REVIEWS & FAQS (LIVE DJANGO NINJA API INTEGRATION)
+// ============================================================================
+const reviews = ref<any[]>([])
+const faqs = ref<any[]>([])
+
+const feedbackModal = ref({
+  isOpen: false,
+  title: '',
+  message: '',
+  type: 'success' as 'success' | 'error'
+})
+
 const testimonialRail = ref<HTMLElement | null>(null)
 
 const slideRail = (direction: 'left' | 'right'): void => {
   if (!testimonialRail.value) return
   const scrollAmount = 380
-  if (direction === 'left') {
-    testimonialRail.value.scrollLeft -= scrollAmount
-  } else {
-    testimonialRail.value.scrollLeft += scrollAmount
-  }
+  testimonialRail.value.scrollLeft += direction === 'left' ? -scrollAmount : scrollAmount
 }
 
-// 3. Review Modal & Success Popup State Management
 const isReviewModalOpen = ref(false)
 const isSuccessModalOpen = ref(false)
 const reviewForm = ref({
@@ -87,663 +127,462 @@ const handleReviewSubmit = async () => {
   try {
     await $fetch(`${apiBase}/api/v1/public/submit-review`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'ngrok-skip-browser-warning': 'true'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: reviewForm.value
     })
-    
     isReviewModalOpen.value = false
     reviewForm.value = { name: '', role: 'Customer / Vendor', comment: '' }
     isSuccessModalOpen.value = true
   } catch (err: any) {
-    feedbackModal.value = { isOpen: true, title: "Submission Failed", message: err?.data?.detail || "Failed to submit review. Please try again.", type: 'error' }
+    feedbackModal.value = {
+      isOpen: true,
+      title: 'Submission Failed',
+      message: err?.data?.detail || 'Failed to submit review. Please try again.',
+      type: 'error'
+    }
   }
 }
 
 const fetchReviews = async () => {
   try {
-    const res: any = await $fetch(`${apiBase}/api/v1/public/reviews`, {
-      method: 'GET',
-      headers: { 'ngrok-skip-browser-warning': 'true' }
-    })
+    const res: any = await $fetch(`${apiBase}/api/v1/public/reviews`)
     reviews.value = res?.reviews || []
   } catch (err) {
-    console.error("Failed to fetch customer reviews", err)
+    console.error('Failed to fetch customer reviews', err)
   }
 }
 
 const fetchFaqs = async () => {
   try {
-    const res: any = await $fetch(`${apiBase}/api/v1/public/faqs`, {
-      method: 'GET',
-      headers: { 'ngrok-skip-browser-warning': 'true' }
-    })
+    const res: any = await $fetch(`${apiBase}/api/v1/public/faqs`)
     faqs.value = res?.faqs || []
   } catch (err) {
-    console.error("Failed to fetch FAQs", err)
+    console.error('Failed to fetch FAQs', err)
   }
 }
 
-// 4. Reactive FAQ Accordion Visibility Toggles Matrix
-const activeFaqIndex = ref<number | null>(null)
-
+const activeFaqIndex = ref<number | null>(0)
 const toggleFaq = (index: number): void => {
   activeFaqIndex.value = activeFaqIndex.value === index ? null : index
 }
 
-// 5. NATIVE INTERSECTION OBSERVER PIPELINE FOR ON-SCROLL REVEALS & SLIDER AUTO-PLAY
-let observer: IntersectionObserver | null = null
+const fetchHomeFeed = async () => {
+  try {
+    const res: any = await $fetch(`${apiBase}/api/v1/public/home-feed`) // Match your actual router path prefix
+    if (res?.status === 'success') {
+      featuredMeals.value = res.featured_meals || []
+      mealCategories.value = res.meal_categories || []
+      restaurants.value = res.restaurants || []
+    }
+  } catch (err) {
+    console.error('Failed to load marketplace home feed:', err)
+  } finally {
+    isLoadingFeed.value = false
+  }
+}
 
 onMounted(() => {
+    fetchHomeFeed()
   fetchReviews()
   fetchFaqs()
-  slideInterval = setInterval(() => {
-    nextSlide()
-  }, 6000)
-
-  const observerOptions = {
-    root: null,
-    rootMargin: '0px',
-    threshold: 0.1
-  }
-
-  observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('scroll-animated')
-        observer?.unobserve(entry.target)
-      }
-    })
-  }, observerOptions)
-
-  const animatableElements = document.querySelectorAll('.scroll-slide-up, .scroll-slide-left, .scroll-slide-right')
-  animatableElements.forEach(el => observer?.observe(el))
+  slideInterval = setInterval(nextSlide, 5500)
 })
 
 onBeforeUnmount(() => {
-  if (observer) observer.disconnect()
   if (slideInterval) clearInterval(slideInterval)
 })
 </script>
 
 <template>
-  <div class="selection:bg-[#D4F53C] selection:text-[#0A1128]">
+  <div class="selection:bg-[#D4F53C] selection:text-[#0A1128] bg-white text-[#0A1128]">
     <!-- =========================================================================
-         SECTION 1: HERO DISPLAY HEADER WITH DYNAMIC IMAGE SLIDER
+         1. LIVELY INTERACTIVE HERO WITH SEARCH & QUICK SERVICE PILLS
          ========================================================================= -->
-    <div class="relative w-full min-h-[92vh] flex items-center justify-center overflow-hidden bg-[#0A1128]">
-            
-            <div 
-              v-for="(slide, idx) in heroSlides" 
-              :key="idx"
-              :class="[currentSlideIndex === idx ? 'opacity-100 scale-100 z-10' : 'opacity-0 scale-105 pointer-events-none z-0']"
-              class="absolute inset-0 transition-all duration-1000 ease-in-out"
+    <section class="relative w-full min-h-[86vh] flex items-center justify-center overflow-hidden bg-[#0A1128]">
+      <!-- Background Image Slider -->
+      <div
+        v-for="(slide, idx) in heroSlides"
+        :key="idx"
+        :class="[currentSlideIndex === idx ? 'opacity-100 scale-100 z-10' : 'opacity-0 scale-105 pointer-events-none z-0']"
+        class="absolute inset-0 transition-all duration-1000 ease-in-out"
+      >
+        <img
+          :src="slide.image"
+          :alt="slide.headline"
+          class="absolute inset-0 w-full h-full object-cover brightness-[0.42] scale-105 transition-transform duration-1000"
+        />
+        <div class="absolute inset-0 bg-gradient-to-t from-[#0A1128] via-[#0A1128]/55 to-[#0A1128]/30"></div>
+      </div>
+
+      <!-- Slider Arrows -->
+      <button
+        type="button"
+        @click="prevSlide"
+        aria-label="Previous slide"
+        class="hidden md:flex absolute left-6 top-1/2 -translate-y-1/2 z-30 w-11 h-11 rounded-2xl bg-white/10 hover:bg-[#D4F53C] text-white hover:text-[#0A1128] backdrop-blur-md items-center justify-center font-bold transition cursor-pointer border border-white/15"
+      >
+        ❮
+      </button>
+      <button
+        type="button"
+        @click="nextSlide"
+        aria-label="Next slide"
+        class="hidden md:flex absolute right-6 top-1/2 -translate-y-1/2 z-30 w-11 h-11 rounded-2xl bg-white/10 hover:bg-[#D4F53C] text-white hover:text-[#0A1128] backdrop-blur-md items-center justify-center font-bold transition cursor-pointer border border-white/15"
+      >
+        ❯
+      </button>
+
+      <!-- Center Hero Content -->
+      <div class="relative z-20 max-w-5xl mx-auto px-6 py-20 text-center space-y-7">
+        <div class="inline-flex items-center space-x-2 bg-[#D4F53C] text-[#0A1128] font-black px-4 py-1.5 rounded-full text-[11px] uppercase tracking-wider shadow-xl">
+          <Sparkles class="w-3.5 h-3.5" />
+          <span>{{ heroSlides[currentSlideIndex]?.badge }}</span>
+        </div>
+
+        <h1 class="text-4xl sm:text-6xl md:text-7xl font-black text-white leading-[1.08] tracking-tight max-w-4xl mx-auto">
+          {{ heroSlides[currentSlideIndex]?.headline }}
+          <span class="block text-[#D4F53C] mt-1">{{ heroSlides[currentSlideIndex]?.highlight }}</span>
+        </h1>
+
+        <p class="text-sm sm:text-lg text-gray-200 max-w-xl mx-auto font-medium">
+          Hot meals, local stores, groceries, and fast bike runs—all in one tap.
+        </p>
+
+        <!-- Interactive Marketplace Search Bar -->
+        <form
+          @submit.prevent="handleQuickSearch"
+          class="max-w-2xl mx-auto bg-white p-2 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col sm:flex-row items-stretch sm:items-center gap-2 border border-white/20"
+        >
+          <div class="flex items-center flex-1 px-3.5 py-2.5 sm:py-0">
+            <Search class="w-5 h-5 text-gray-400 mr-3 flex-shrink-0" />
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="Search Jollof rice, shawarma, groceries, or stores..."
+              class="w-full text-sm font-semibold text-[#0A1128] placeholder-gray-400 bg-transparent border-0 focus:outline-none"
+            />
+          </div>
+          <button
+            type="submit"
+            class="bg-[#0A1128] hover:bg-[#16224a] text-[#D4F53C] font-black px-7 py-3.5 rounded-xl sm:rounded-2xl text-xs uppercase tracking-wider transition cursor-pointer border-0 flex items-center justify-center gap-2 shadow-md active:scale-95"
+          >
+            <span>Find Now</span>
+            <ArrowRight class="w-4 h-4" />
+          </button>
+        </form>
+
+        <!-- Quick Service Action Pills -->
+        <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
+          <NuxtLink
+            to="/marketplace?category=food"
+            class="bg-white/10 hover:bg-[#D4F53C] text-white hover:text-[#0A1128] backdrop-blur-md border border-white/15 px-5 py-2.5 rounded-full text-xs font-black tracking-wide transition flex items-center gap-2 no-underline"
+          >
+            <Utensils class="w-3.5 h-3.5" />
+            <span>Order Food</span>
+          </NuxtLink>
+          <NuxtLink
+            to="/marketplace?category=retail"
+            class="bg-white/10 hover:bg-[#D4F53C] text-white hover:text-[#0A1128] backdrop-blur-md border border-white/15 px-5 py-2.5 rounded-full text-xs font-black tracking-wide transition flex items-center gap-2 no-underline"
+          >
+            <ShoppingBag class="w-3.5 h-3.5" />
+            <span>Shop Stores</span>
+          </NuxtLink>
+          <NuxtLink
+            to="/marketplace"
+            class="bg-white/10 hover:bg-[#D4F53C] text-white hover:text-[#0A1128] backdrop-blur-md border border-white/15 px-5 py-2.5 rounded-full text-xs font-black tracking-wide transition flex items-center gap-2 no-underline"
+          >
+            <Bike class="w-3.5 h-3.5" />
+            <span>Book Bike / Errand</span>
+          </NuxtLink>
+        </div>
+      </div>
+
+      <!-- Slide Dots -->
+      <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center space-x-2 bg-black/30 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10">
+        <button
+          v-for="(_, dotIdx) in heroSlides"
+          :key="dotIdx"
+          type="button"
+          @click="currentSlideIndex = dotIdx"
+          :class="[currentSlideIndex === dotIdx ? 'w-7 bg-[#D4F53C]' : 'w-2 bg-white/40 hover:bg-white/75']"
+          class="h-2 rounded-full transition-all duration-300 cursor-pointer border-0"
+        ></button>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         2. FEATURED FOODS COMPONENT
+         ========================================================================= -->
+    <FeaturedMeals :meals="featuredMeals" :categories="mealCategories" :loading="isLoadingFeed" />
+   
+
+    <!-- =========================================================================
+         3. POPULAR RESTAURANTS COMPONENT
+         ========================================================================= -->
+    <PopularRestaurants :restaurants="restaurants" :loading="isLoadingFeed" />
+    
+
+    <!-- =========================================================================
+         4. SHOP LOCAL STORES & E-COMMERCE COMPONENT
+         ========================================================================= -->
+    <ShopLocalStores />
+
+    <!-- =========================================================================
+         5. COMPACT ECOSYSTEM CTA BANNER (RIDERS, VENDORS, CAREERS)
+         ========================================================================= -->
+    <section class="py-16 md:py-20 bg-gray-50 border-b border-gray-100">
+      <div class="max-w-6xl mx-auto px-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="bg-white p-7 rounded-[28px] border border-gray-100 shadow-sm flex flex-col justify-between space-y-6">
+            <div class="space-y-2">
+              <span class="text-[10px] font-black uppercase tracking-widest text-[#0A1128] bg-[#D4F53C] px-3 py-1 rounded-full inline-block">Earn Weekly</span>
+              <h3 class="text-xl font-black text-[#0A1128]">Ride with Aika</h3>
+              <p class="text-xs text-gray-500 font-medium leading-relaxed">Flexible hours, instant trip alerts, and reliable weekly payouts.</p>
+            </div>
+            <NuxtLink to="/rider/register" class="bg-[#0A1128] hover:bg-[#16224a] text-[#D4F53C] font-black text-xs uppercase tracking-wider py-3.5 px-5 rounded-xl text-center transition no-underline">
+              Become a Rider
+            </NuxtLink>
+          </div>
+
+          <div class="bg-gradient-to-br from-[#D4F53C] to-[#bfe324] p-7 rounded-[28px] shadow-md flex flex-col justify-between space-y-6">
+            <div class="space-y-2">
+              <span class="text-[10px] font-black uppercase tracking-widest text-[#0A1128] bg-white/80 px-3 py-1 rounded-full inline-block">Boost Sales</span>
+              <h3 class="text-xl font-black text-[#0A1128]">Open Your Storefront</h3>
+              <p class="text-xs text-[#0A1128]/85 font-semibold leading-relaxed">List your restaurant or retail shop and reach hungry buyers across town.</p>
+            </div>
+            <NuxtLink to="/merchant/register" class="bg-[#0A1128] hover:bg-[#16224a] text-white font-black text-xs uppercase tracking-wider py-3.5 px-5 rounded-xl text-center transition no-underline">
+              Register Storefront
+            </NuxtLink>
+          </div>
+
+          <div class="bg-white p-7 rounded-[28px] border border-gray-100 shadow-sm flex flex-col justify-between space-y-6">
+            <div class="space-y-2">
+              <span class="text-[10px] font-black uppercase tracking-widest text-[#0A1128] bg-[#D4F53C] px-3 py-1 rounded-full inline-block">Careers</span>
+              <h3 class="text-xl font-black text-[#0A1128]">Join the Crew</h3>
+              <p class="text-xs text-gray-500 font-medium leading-relaxed">Help us build fast local commerce and logistics infrastructure.</p>
+            </div>
+            <NuxtLink to="/careers" class="bg-[#0A1128] hover:bg-[#16224a] text-[#D4F53C] font-black text-xs uppercase tracking-wider py-3.5 px-5 rounded-xl text-center transition no-underline">
+              Explore Roles
+            </NuxtLink>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         6. LIVE REVIEWS CAROUSEL & SUBMISSION
+         ========================================================================= -->
+    <section class="bg-[#0A1128] text-white py-16 md:py-24 border-b border-white/5 overflow-hidden">
+      <div class="max-w-6xl mx-auto px-6">
+        <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
+          <div class="space-y-2">
+            <span class="text-[10px] font-black tracking-widest uppercase text-[#0A1128] bg-[#D4F53C] px-3.5 py-1 rounded-full inline-block">Reviews</span>
+            <h2 class="text-3xl sm:text-4xl font-black tracking-tight">Loved Across Town</h2>
+          </div>
+
+          <button
+            type="button"
+            @click="openReviewModal"
+            class="text-xs font-black uppercase tracking-wider text-[#0A1128] bg-[#D4F53C] hover:bg-[#c3e334] px-5 py-3 rounded-2xl transition shadow-lg cursor-pointer inline-flex items-center gap-2 border-0 self-start sm:self-auto"
+          >
+            <MessageSquarePlus class="w-4 h-4" />
+            <span>Share Experience</span>
+          </button>
+        </div>
+
+        <div
+          ref="testimonialRail"
+          class="flex space-x-5 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-4 scrollbar-none"
+          style="-ms-overflow-style: none; scrollbar-width: none;"
+        >
+          <div
+            v-for="rev in reviews"
+            :key="rev.id"
+            class="flex-shrink-0 w-full sm:w-[380px] bg-white/[0.05] border border-white/10 rounded-[28px] p-7 snap-center flex flex-col justify-between hover:border-[#D4F53C]/50 transition"
+          >
+            <div class="space-y-3">
+              <div class="flex items-center space-x-1 text-[#D4F53C]">
+                <Star v-for="i in 5" :key="i" class="w-4 h-4 fill-current" />
+              </div>
+              <p class="text-gray-200 text-sm font-medium leading-relaxed">“{{ rev.comment }}”</p>
+            </div>
+            <div class="pt-5 border-t border-white/10 mt-5">
+              <h4 class="text-sm font-black text-[#D4F53C]">{{ rev.name }}</h4>
+              <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">{{ rev.role }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="reviews.length > 1" class="flex justify-end items-center space-x-2.5 mt-4">
+          <button
+            type="button"
+            @click="slideRail('left')"
+            class="w-10 h-10 rounded-xl bg-white/10 hover:bg-[#D4F53C] text-white hover:text-[#0A1128] flex items-center justify-center transition cursor-pointer border-0"
+          >
+            ←
+          </button>
+          <button
+            type="button"
+            @click="slideRail('right')"
+            class="w-10 h-10 rounded-xl bg-white/10 hover:bg-[#D4F53C] text-white hover:text-[#0A1128] flex items-center justify-center transition cursor-pointer border-0"
+          >
+            →
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         7. COMPACT FAQ ACCORDION
+         ========================================================================= -->
+    <section id="faq" class="bg-white py-16 md:py-24">
+      <div class="max-w-3xl mx-auto px-6">
+        <div class="text-center mb-10 space-y-2">
+          <span class="text-[10px] font-black tracking-widest uppercase text-[#0A1128] bg-[#D4F53C] px-3.5 py-1 rounded-full inline-block">FAQ</span>
+          <h2 class="text-3xl font-black text-[#0A1128] tracking-tight">Quick Answers</h2>
+        </div>
+
+        <div class="space-y-3">
+          <div
+            v-for="(faq, index) in faqs"
+            :key="faq.id"
+            class="border border-gray-200/80 rounded-2xl bg-gray-50/60 overflow-hidden"
+          >
+            <button
+              type="button"
+              @click="toggleFaq(index)"
+              class="w-full flex items-center justify-between px-5 py-4 text-left font-extrabold text-sm text-[#0A1128] cursor-pointer border-0 bg-transparent"
             >
-                <img :src="slide.image" :alt="slide.title" class="absolute inset-0 w-full h-full object-cover brightness-[0.45] scale-105 transform transition-transform duration-10000" />
-                <div class="absolute inset-0 bg-gradient-to-t from-[#0A1128] via-[#0A1128]/60 to-[#0A1128]/30"></div>
+              <span>{{ faq.question }}</span>
+              <span class="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center font-black text-emerald-700">
+                {{ activeFaqIndex === index ? '−' : '＋' }}
+              </span>
+            </button>
+            <div
+              :class="[activeFaqIndex === index ? 'max-h-60 pb-4 px-5' : 'max-h-0']"
+              class="overflow-hidden transition-all duration-300 ease-in-out"
+            >
+              <p class="text-xs sm:text-sm text-gray-500 font-medium leading-relaxed pt-2 border-t border-gray-200/60">
+                {{ faq.answer }}
+              </p>
             </div>
-
-            <!-- Navigation Arrows -->
-            <button type="button" @click="prevSlide" class="absolute left-6 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-2xl bg-white/10 hover:bg-[#D4F53C] text-white hover:text-[#0A1128] backdrop-blur-md flex items-center justify-center font-bold transition-all duration-300 cursor-pointer shadow-2xl border border-white/10 outline-none">❮</button>
-            <button type="button" @click="nextSlide" class="absolute right-6 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-2xl bg-white/10 hover:bg-[#D4F53C] text-white hover:text-[#0A1128] backdrop-blur-md flex items-center justify-center font-bold transition-all duration-300 cursor-pointer shadow-2xl border border-white/10 outline-none">❯</button>
-
-            <!-- Dots Indicator -->
-            <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 flex items-center space-x-2.5 bg-black/20 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
-                <button 
-                  type="button"
-                  v-for="(_, dotIdx) in heroSlides" 
-                  :key="dotIdx"
-                  @click="currentSlideIndex = dotIdx"
-                  :class="[currentSlideIndex === dotIdx ? 'w-8 bg-[#D4F53C]' : 'w-2 bg-white/40 hover:bg-white/70']"
-                  class="h-2 rounded-full transition-all duration-300 cursor-pointer border-0 outline-none"
-                ></button>
-            </div>
-
-            <div class="relative z-20 max-w-5xl mx-auto px-6 py-24 text-center space-y-8">
-                <div class="scroll-slide-up space-y-6">
-                    <div class="inline-flex items-center space-x-2 bg-[#D4F53C] text-[#0A1128] font-black px-4 py-2 rounded-2xl text-[11px] uppercase tracking-widest shadow-xl border border-white/20">
-                        <Sparkles class="w-3.5 h-3.5 animate-spin" />
-                        <span>{{ heroSlides[currentSlideIndex]?.tag || '⚡ Instant Bike Transit' }}</span>
-                    </div>
-                    
-                    <h1 class="text-4xl sm:text-6xl md:text-7xl font-black text-white leading-[1.1] tracking-tight max-w-4xl mx-auto drop-shadow-md">
-                        Need a Ride or Delivery? <br><span class="text-transparent bg-clip-text bg-gradient-to-r from-white via-[#D4F53C] to-white">We've Got You Covered.</span>
-                    </h1>
-                    
-                    <p class="text-base sm:text-lg text-gray-300 leading-relaxed max-w-2xl mx-auto font-medium drop-shadow-sm">
-                        Whether you need a swift cross-town passenger ride or an automated merchant fleet dispatching food and retail packages directly to buyers, Aika secures vetted transit loops instantly.
-                    </p>
-
-                    <div class="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
-                        <NuxtLink 
-                            to="/marketplace" 
-                            class="w-full sm:w-auto bg-[#D4F53C] hover:bg-[#c3e334] text-[#0A1128] font-black px-8 py-4 rounded-2xl shadow-xl hover:shadow-2xl transition-all transform hover:-translate-y-0.5 active:scale-95 inline-flex items-center justify-center space-x-3 text-xs uppercase tracking-wider cursor-pointer border-0 outline-none no-underline"
-                        >
-                            <span>Explore Marketplace</span>
-                            <ArrowRight class="w-4 h-4" />
-                        </NuxtLink>
-                    </div>
-                </div>
-
-                <div class="mt-12 grid grid-cols-3 gap-4 max-w-lg mx-auto text-center scroll-slide-up">
-                    <div class="flex flex-col items-center p-4 bg-white/[0.06] backdrop-blur-xl rounded-2xl border border-white/10 shadow-lg text-white transition hover:border-[#D4F53C]/50 hover:bg-white/[0.1]">
-                        <span class="text-xs font-black tracking-wide uppercase">⚡ Instant Hailing</span>
-                    </div>
-                    <div class="flex flex-col items-center p-4 bg-white/[0.06] backdrop-blur-xl rounded-2xl border border-white/10 shadow-lg text-white transition hover:border-[#D4F53C]/50 hover:bg-white/[0.1]">
-                        <span class="text-xs font-black tracking-wide uppercase">🛡️ Vetted Fleets</span>
-                    </div>
-                    <div class="flex flex-col items-center p-4 bg-white/[0.06] backdrop-blur-xl rounded-2xl border border-white/10 shadow-lg text-white transition hover:border-[#D4F53C]/50 hover:bg-white/[0.1]">
-                        <span class="text-xs font-black tracking-wide uppercase">📍 Live Radar</span>
-                    </div>
-                </div>
-            </div>
-    </div>
-
-    <!-- =========================================================================
-         SECTION 2: CORE SERVICES & FEATURES GRID BLOCK
-         ========================================================================= -->
-    <section id="features" class="bg-gray-50/50 py-20 md:py-32 border-b border-gray-100 overflow-hidden">
-        <div class="max-w-6xl mx-auto px-6">
-            <div class="text-center max-w-2xl mx-auto mb-16 scroll-slide-up space-y-3">
-                <span class="text-[10px] font-black tracking-widest uppercase text-[#0A1128] bg-[#D4F53C] px-4 py-1.5 rounded-full shadow-xs inline-block">Our Provisions</span>
-                <h2 class="text-3xl sm:text-4xl font-black text-[#0A1128] tracking-tight">What We Provide</h2>
-                <p class="text-gray-500 font-medium text-sm sm:text-base leading-relaxed">A complete logistics suite engineered for rapid fulfillment, absolute safety, and everyday transit comfort.</p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch max-w-5xl mx-auto">
-                <div class="bg-gradient-to-br from-[#D4F53C] to-[#bce02b] rounded-[36px] p-8 md:p-12 flex flex-col justify-between shadow-2xl relative overflow-hidden group min-h-[440px] scroll-slide-right border border-lime-300">
-                    <div class="space-y-4 max-w-sm z-10 text-left">
-                        <span class="text-[#0A1128] text-[10px] font-black uppercase tracking-widest bg-white/70 backdrop-blur-md px-4 py-1.5 rounded-full inline-block shadow-xs">On-Demand Catering</span>
-                        <h3 class="text-2xl md:text-4xl font-black text-[#0A1128] leading-[1.15] tracking-tight">Order from restaurant of your choice</h3>
-                        <p class="text-[#0A1128]/85 text-xs sm:text-sm font-semibold leading-relaxed">
-                            Explore a wide variety of local eateries and discover an amazing selection of meals delivered straight to your location while still piping hot.
-                        </p>
-                    </div>
-                    
-                    <div class="mt-8 bg-white/90 backdrop-blur-xl rounded-2xl p-5 border border-white/60 shadow-lg transform transition-transform duration-500 group-hover:scale-[1.02] text-left">
-                        <div class="flex items-center space-x-4">
-                            <div class="w-12 h-12 bg-[#0A1128] text-[#D4F53C] rounded-xl flex items-center justify-center font-bold text-lg shadow-md">🍽️</div>
-                            <div>
-                                <h4 class="text-xs font-black text-[#0A1128] uppercase tracking-wider">Fast Food Routing</h4>
-                                <p class="text-[11px] text-gray-500 font-bold mt-0.5">Automated cooking-to-dispatch handshakes.</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-[#0A1128] text-white rounded-[36px] p-8 md:p-12 flex flex-col justify-between shadow-2xl relative overflow-hidden group min-h-[440px] scroll-slide-left border border-white/10">
-                    <div class="space-y-4 max-w-sm z-10 text-left">
-                        <span class="text-[#0A1128] bg-[#D4F53C] text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full inline-block shadow-sm">City Transit</span>
-                        <h3 class="text-2xl md:text-4xl font-black text-white leading-[1.15] tracking-tight">Plethora of errands &amp; bike runs</h3>
-                        <p class="text-gray-400 text-xs sm:text-sm font-medium leading-relaxed">
-                            From secure cross-town motorcycle passenger bookings to custom item purchase errands, get connected with reliable runners instantly.
-                        </p>
-                    </div>
-
-                    <div class="mt-8 grid grid-cols-2 gap-4">
-                        <div class="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center space-x-3 group-hover:border-[#D4F53C]/50 transition bg-white/[0.03]">
-                            <div class="text-xs font-black text-[#D4F53C] tracking-wide">⚡ Instant Bike</div>
-                        </div>
-                        <div class="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center space-x-3 group-hover:border-[#D4F53C]/50 transition bg-white/[0.03]">
-                            <div class="text-xs font-black text-[#D4F53C] tracking-wide">📦 Errand Loops</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+          </div>
         </div>
+      </div>
     </section>
 
     <!-- =========================================================================
-         SECTION 3: DETAILED FOOD & RETAIL EXPERIENCE ACCENT
-         ========================================================================= -->
-    <section class="bg-[#0A1128] text-white py-20 md:py-32 border-t border-b border-white/5 overflow-hidden relative">
-        <div class="max-w-6xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-            <div class="lg:col-span-7 space-y-6 text-center lg:text-left scroll-slide-right">
-                <span class="text-[10px] font-black tracking-widest uppercase text-[#0A1128] bg-[#D4F53C] px-4 py-1.5 rounded-full inline-block shadow-sm">Vendor Ecosystem</span>
-                <h2 class="text-3xl sm:text-5xl font-black text-white tracking-tight leading-[1.15]">
-                    Everything You Need for a <br/><span class="text-[#D4F53C]">Better Food &amp; Retail Experience</span>
-                </h2>
-                <p class="text-gray-300 text-sm sm:text-base font-medium leading-relaxed max-w-xl mx-auto lg:mx-0">
-                    Enjoy a seamless way to discover, order, and receive your favorite meals and retail items with speed, convenience, and variety—all in one integrated platform.
-                </p>
-                
-                <div class="space-y-4 max-w-lg mx-auto lg:mx-0 text-left pt-2">
-                    <div class="flex items-start space-x-3.5 bg-white/5 border border-white/10 p-4 rounded-2xl">
-                        <div class="flex-shrink-0 w-6 h-6 rounded-xl bg-[#D4F53C] flex items-center justify-center text-[#0A1128] text-xs font-black shadow-sm">✓</div>
-                        <p class="text-xs sm:text-sm font-bold text-gray-200 leading-snug">
-                            Access meals and products from multiple restaurants and local vendors all in one platform.
-                        </p>
-                    </div>
-                    <div class="flex items-start space-x-3.5 bg-white/5 border border-white/10 p-4 rounded-2xl">
-                        <div class="flex-shrink-0 w-6 h-6 rounded-xl bg-[#D4F53C] flex items-center justify-center text-[#0A1128] text-xs font-black shadow-sm">✓</div>
-                        <p class="text-xs sm:text-sm font-bold text-gray-200 leading-snug">
-                            Get your items delivered quickly and fresh, straight to your exact doorstep coordinates.
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="lg:col-span-5 flex justify-center scroll-slide-left">
-                <div class="bg-white/[0.06] backdrop-blur-2xl border border-white/10 p-8 rounded-[36px] w-full max-w-md shadow-2xl relative flex flex-col justify-center min-h-[360px]">
-                    <div class="w-full bg-white text-[#0A1128] p-6 rounded-3xl shadow-xl relative border border-gray-100">
-                        <div class="flex items-center justify-between mb-6">
-                            <span class="text-[10px] font-black tracking-widest uppercase text-[#0A1128] bg-[#D4F53C] px-3.5 py-1.5 rounded-full flex items-center space-x-1.5 shadow-xs">
-                                <span class="w-2 h-2 rounded-full bg-[#0A1128] animate-pulse"></span>
-                                <span>Featured Items</span>
-                            </span>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-3">
-                            <div class="bg-gray-50 border border-gray-200/60 rounded-2xl p-2.5 flex flex-col justify-between min-h-[140px] shadow-2xs">
-                                <div class="relative rounded-xl overflow-hidden h-24 bg-white border border-gray-100 p-2.5 flex flex-col justify-between shadow-2xs">
-                                    <div class="bg-[#0A1128] text-[#D4F53C] text-[10px] font-black px-2 py-0.5 rounded-md shadow-xs self-start font-mono">₦1,500</div>
-                                    <div class="text-center font-black text-xs text-[#0A1128]">Jollof Rice</div>
-                                </div>
-                            </div>
-                            <div class="bg-gray-50 border border-gray-200/60 rounded-2xl p-2.5 flex flex-col justify-between min-h-[140px] shadow-2xs">
-                                <div class="relative rounded-xl overflow-hidden h-24 bg-white border border-gray-100 p-2.5 flex flex-col justify-between shadow-2xs">
-                                    <div class="bg-[#0A1128] text-[#D4F53C] text-[10px] font-black px-2 py-0.5 rounded-md shadow-xs self-start font-mono">₦1,500</div>
-                                    <div class="text-center font-black text-xs text-[#0A1128]">Pounded Yam</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- =========================================================================
-         SECTION 4: HOW IT WORKS SECTION
-         ========================================================================= -->
-    <section id="how-it-works" class="bg-white py-20 md:py-32 border-b border-gray-100">
-        <div class="max-w-6xl mx-auto px-6">
-            <div class="text-center max-w-2xl mx-auto mb-16 scroll-slide-up space-y-3">
-                <span class="text-[10px] font-black tracking-widest uppercase text-[#0A1128] bg-[#D4F53C] px-4 py-1.5 rounded-full inline-block">Workflow</span>
-                <h2 class="text-3xl sm:text-4xl font-black text-[#0A1128] tracking-tight">How Aika Works</h2>
-                <p class="text-gray-500 font-medium text-sm sm:text-base leading-relaxed">Get matched with a secure proximity vehicle inside our synchronized maps router within minutes.</p>
-            </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-lg mx-auto md:max-w-none">
-                <div class="p-8 bg-gray-50/80 rounded-[32px] border border-gray-100 shadow-sm scroll-slide-up text-left space-y-4 hover:border-[#D4F53C] transition">
-                    <div class="w-14 h-14 bg-[#D4F53C] text-[#0A1128] rounded-2xl flex items-center justify-center text-xl font-black shadow-md">1</div>
-                    <h3 class="text-lg font-black text-[#0A1128]">Set Coordinates</h3>
-                    <p class="text-gray-500 text-xs sm:text-sm leading-relaxed font-medium">Select your booking intent. Key in pickup points and coordinate landmarks safely.</p>
-                </div>
-                <div class="p-8 bg-gray-50/80 rounded-[32px] border border-gray-100 shadow-sm scroll-slide-up text-left space-y-4 hover:border-[#D4F53C] transition">
-                    <div class="w-14 h-14 bg-[#D4F53C] text-[#0A1128] rounded-2xl flex items-center justify-center text-xl font-black shadow-md">2</div>
-                    <h3 class="text-lg font-black text-[#0A1128]">Fleet Processing</h3>
-                    <p class="text-gray-500 text-xs sm:text-sm leading-relaxed font-medium">Our central API allocation matrix cross-checks active tokens and pins down the nearest available runner.</p>
-                </div>
-                <div class="p-8 bg-gray-50/80 rounded-[32px] border border-gray-100 shadow-sm scroll-slide-up text-left space-y-4 hover:border-[#D4F53C] transition">
-                    <div class="w-14 h-14 bg-[#D4F53C] text-[#0A1128] rounded-2xl flex items-center justify-center text-xl font-black shadow-md">3</div>
-                    <h3 class="text-lg font-black text-[#0A1128]">Transit Realized</h3>
-                    <p class="text-gray-500 text-xs sm:text-sm leading-relaxed font-medium">Your rider arrives instantly for secure transit or package clearance, logging digital keys upon completion.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- =========================================================================
-         SECTION 5: PLATFORM HIGHLIGHTS & LIVE METRICS MATRIX
-         ========================================================================= -->
-    <section id="platform-highlights" class="py-20 md:py-32 bg-gray-50/50 border-b border-gray-100 overflow-hidden">
-        <div class="max-w-6xl mx-auto px-6 space-y-16">
-            <div class="text-center max-w-2xl mx-auto scroll-slide-up space-y-3">
-                <span class="text-[10px] font-black tracking-widest uppercase text-[#0A1128] bg-[#D4F53C] px-4 py-1.5 rounded-full inline-block">
-                    Platform Performance
-                </span>
-                <h2 class="text-3xl sm:text-4xl font-black text-[#0A1128] tracking-tight">
-                    Engineered for Speed &amp; Reliability
-                </h2>
-                <p class="text-gray-500 text-sm sm:text-base font-medium leading-relaxed">
-                    Our synchronized multi-tenant backend infrastructure coordinates riders, merchants, and customers in real-time.
-                </p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                
-                <div class="bg-white border border-gray-100 p-8 rounded-[32px] text-left space-y-4 hover:border-[#D4F53C] transition shadow-sm scroll-slide-up group">
-                    <div class="w-14 h-14 rounded-2xl bg-[#0A1128] text-[#D4F53C] flex items-center justify-center font-black shadow-lg group-hover:scale-105 transition-transform">
-                        <Zap class="w-6 h-6" />
-                    </div>
-                    <div class="space-y-1.5">
-                        <h3 class="text-base font-black text-[#0A1128]">Instant Dispatch</h3>
-                        <p class="text-xs text-gray-500 font-medium leading-relaxed">Automated matching pairs orders with the closest available rider within seconds.</p>
-                    </div>
-                </div>
-
-                <div class="bg-white border border-gray-100 p-8 rounded-[32px] text-left space-y-4 hover:border-[#D4F53C] transition shadow-sm scroll-slide-up group">
-                    <div class="w-14 h-14 rounded-2xl bg-[#0A1128] text-[#D4F53C] flex items-center justify-center font-black shadow-lg group-hover:scale-105 transition-transform">
-                        <Store class="w-6 h-6" />
-                    </div>
-                    <div class="space-y-1.5">
-                        <h3 class="text-base font-black text-[#0A1128]">Multi-Storefront</h3>
-                        <p class="text-xs text-gray-500 font-medium leading-relaxed">Diverse merchant catalogs ranging from local eateries to boutique retail stores.</p>
-                    </div>
-                </div>
-
-                <div class="bg-white border border-gray-100 p-8 rounded-[32px] text-left space-y-4 hover:border-[#D4F53C] transition shadow-sm scroll-slide-up group">
-                    <div class="w-14 h-14 rounded-2xl bg-[#0A1128] text-[#D4F53C] flex items-center justify-center font-black shadow-lg group-hover:scale-105 transition-transform">
-                        <ShieldCheck class="w-6 h-6" />
-                    </div>
-                    <div class="space-y-1.5">
-                        <h3 class="text-base font-black text-[#0A1128]">Secure Escrow</h3>
-                        <p class="text-xs text-gray-500 font-medium leading-relaxed">Split payments and secure checkout flows protected by industry-grade encryption.</p>
-                    </div>
-                </div>
-
-                <div class="bg-white border border-gray-100 p-8 rounded-[32px] text-left space-y-4 hover:border-[#D4F53C] transition shadow-sm scroll-slide-up group">
-                    <div class="w-14 h-14 rounded-2xl bg-[#0A1128] text-[#D4F53C] flex items-center justify-center font-black shadow-lg group-hover:scale-105 transition-transform">
-                        <Clock class="w-6 h-6" />
-                    </div>
-                    <div class="space-y-1.5">
-                        <h3 class="text-base font-black text-[#0A1128]">24/7 Operations</h3>
-                        <p class="text-xs text-gray-500 font-medium leading-relaxed">Round-the-clock logistics support and live web-push notification alerts.</p>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-    </section>
-
-    <!-- =========================================================================
-         SECTION 6: PARTNERSHIP & CAREERS SECTION
-         ========================================================================= -->
-    <section class="py-24 md:py-36 bg-[#080E21] border-b border-white/5 relative overflow-hidden">
-        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#D4F53C]/10 rounded-full blur-[120px] pointer-events-none"></div>
-
-        <div class="max-w-6xl mx-auto px-6 text-center space-y-16 relative z-10">
-            
-            <div class="space-y-4 scroll-slide-up max-w-xl mx-auto">
-                <span class="bg-[#D4F53C]/15 text-[#D4F53C] font-black px-4 py-1.5 rounded-full text-[10px] uppercase tracking-widest inline-flex items-center space-x-2 border border-[#D4F53C]/30 shadow-sm">
-                    <span>Ecosystem Opportunities</span>
-                </span>
-                <h2 class="text-3xl sm:text-5xl font-black text-white tracking-tight leading-[1.15]">
-                    Let's Build &amp; Grow <span class="text-[#D4F53C]">Together</span>
-                </h2>
-                <p class="text-gray-400 text-sm sm:text-base font-medium leading-relaxed">
-                    Whether you want to ride, expand your merchant storefront, or join our core engineering crew, we have a place for you.
-                </p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch max-w-5xl mx-auto">
-                
-                <div class="bg-white/[0.04] backdrop-blur-2xl p-8 md:p-10 rounded-[36px] shadow-2xl border border-white/10 flex flex-col justify-between text-center space-y-8 scroll-slide-up group hover:border-[#D4F53C]/50 hover:bg-white/[0.07] transition-all duration-300">
-                    <div class="space-y-4">
-                        <span class="text-[10px] font-black uppercase tracking-widest text-[#D4F53C] bg-[#D4F53C]/15 px-3.5 py-1.5 rounded-full inline-block">Fleet Partner</span>
-                        <h3 class="text-2xl font-black text-white tracking-tight">Become a Rider</h3>
-                        <p class="text-xs text-gray-300 font-medium leading-relaxed">
-                            Enjoy total flexibility, freedom, and competitive weekly earnings by delivering through Aika's active transit network.
-                        </p>
-                    </div>
-                    <NuxtLink to="/rider/register" class="bg-[#D4F53C] hover:bg-[#c3e334] text-[#0A1128] font-black px-6 py-4 rounded-2xl text-xs uppercase tracking-wider transition-all shadow-lg w-full block no-underline transform active:scale-95">
-                        Register as Rider
-                    </NuxtLink>
-                </div>
-
-                <div class="bg-white/[0.04] backdrop-blur-2xl p-8 md:p-10 rounded-[36px] shadow-2xl border border-white/10 flex flex-col justify-between text-center space-y-8 scroll-slide-up group hover:border-[#D4F53C]/50 hover:bg-white/[0.07] transition-all duration-300">
-                    <div class="space-y-4">
-                        <span class="text-[10px] font-black uppercase tracking-widest text-[#D4F53C] bg-[#D4F53C]/15 px-3.5 py-1.5 rounded-full inline-block">Merchant Hub</span>
-                        <h3 class="text-2xl font-black text-white tracking-tight">Register Storefront</h3>
-                        <p class="text-xs text-gray-300 font-medium leading-relaxed">
-                            Grow with Aika! Our cutting-edge technology and engaged customer base help you boost sales and unlock new fulfillment channels.
-                        </p>
-                    </div>
-                    <NuxtLink to="/merchant/register" class="bg-[#D4F53C] hover:bg-[#c3e334] text-[#0A1128] font-black px-6 py-4 rounded-2xl text-xs uppercase tracking-wider transition-all shadow-lg w-full block no-underline transform active:scale-95">
-                        Register Storefront
-                    </NuxtLink>
-                </div>
-
-                <div class="bg-white/[0.04] backdrop-blur-2xl p-8 md:p-10 rounded-[36px] shadow-2xl border border-white/10 flex flex-col justify-between text-center space-y-8 scroll-slide-up group hover:border-[#D4F53C]/50 hover:bg-white/[0.07] transition-all duration-300">
-                    <div class="space-y-4">
-                        <span class="text-[10px] font-black uppercase tracking-widest text-[#D4F53C] bg-[#D4F53C]/15 px-3.5 py-1.5 rounded-full inline-block">Open Roles</span>
-                        <h3 class="text-2xl font-black text-white tracking-tight">Join Our Team</h3>
-                        <p class="text-xs text-gray-300 font-medium leading-relaxed">
-                            Ready for an exciting challenge? If you're ambitious, humble, and love engineering impactful systems, we want to hear from you!
-                        </p>
-                    </div>
-                    <NuxtLink to="/careers" class="bg-[#D4F53C] hover:bg-[#c3e334] text-[#0A1128] font-black px-6 py-4 rounded-2xl text-xs uppercase tracking-wider transition-all shadow-lg w-full block no-underline transform active:scale-95">
-                        Explore Careers
-                    </NuxtLink>
-                </div>
-
-            </div>
-        </div>
-    </section>
-
-    <!-- =========================================================================
-     SECTION 7: TESTIMONIAL SUITE CAROUSEL SLIDER & REVIEW TRIGGER
-     ========================================================================= -->
-    <section class="bg-[#0A1128] text-white py-20 md:py-32 border-t border-b border-white/5 relative overflow-hidden">
-        <div class="max-w-6xl mx-auto px-6">
-            <div class="text-center max-w-2xl mx-auto mb-16 scroll-slide-up space-y-3">
-                <span class="text-[10px] font-black tracking-widest uppercase text-[#0A1128] bg-[#D4F53C] px-4 py-1.5 rounded-full inline-block">User Proof</span>
-                <h2 class="text-3xl sm:text-4xl font-black text-white tracking-tight">Trusted Across Town</h2>
-                <p class="text-gray-400 font-medium text-sm sm:text-base leading-relaxed">See how individuals and marketplace business vendors leverage our lightning-fast transit channels daily.</p>
-            </div>
-
-            <div class="relative w-full overflow-visible px-2 scroll-slide-up">
-                <div ref="testimonialRail" class="flex space-x-6 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-8 pr-12 scrollbar-none" style="-ms-overflow-style: none; scrollbar-width: none;">
-                    
-                    <!-- Dynamic Backend Reviews Loop -->
-                    <div 
-                        v-for="rev in reviews" 
-                        :key="rev.id" 
-                        class="flex-shrink-0 w-full sm:w-[420px] bg-white/[0.04] border border-white/10 rounded-[32px] p-8 shadow-2xl snap-center flex flex-col justify-between transition-all duration-300 hover:border-[#D4F53C]/50 text-left"
-                    >
-                        <div class="space-y-4">
-                            <div class="flex items-center space-x-1 text-[#D4F53C]">
-                                <Star v-for="i in 5" :key="i" class="w-4 h-4 fill-current" />
-                            </div>
-                            <p class="text-gray-300 text-sm sm:text-base font-medium leading-relaxed">
-                                “{{ rev.comment }}”
-                            </p>
-                        </div>
-                        <div class="pt-6 border-t border-white/10 mt-6">
-                            <h4 class="text-base font-black text-[#D4F53C]">{{ rev.name }}</h4>
-                            <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">{{ rev.role }}</p>
-                        </div>
-                    </div>
-
-                </div>
-
-                <!-- Controls & Review Trigger Block -->
-                <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-8 w-full">
-                    <div class="hidden sm:block w-32"></div>
-
-                    <div class="flex justify-center items-center space-x-3">
-                        <button type="button" @click="slideRail('left')" class="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white hover:text-[#0A1128] hover:bg-[#D4F53C] transition cursor-pointer outline-none shadow-md">←</button>
-                        <button type="button" @click="slideRail('right')" class="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white hover:text-[#0A1128] hover:bg-[#D4F53C] transition cursor-pointer outline-none shadow-md">→</button>
-                    </div>
-
-                    <div class="w-full sm:w-auto flex justify-center sm:justify-end">
-                        <button 
-                            type="button" 
-                            @click="openReviewModal" 
-                            class="text-xs font-black uppercase tracking-wider text-[#0A1128] bg-[#D4F53C] hover:bg-[#c3e334] px-6 py-3.5 rounded-2xl transition shadow-lg cursor-pointer outline-none inline-flex items-center gap-2 border-0 transform active:scale-95"
-                        >
-                            <MessageSquarePlus class="w-4 h-4" />
-                            <span>Share Experience</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- =========================================================================
-         SECTION 8: DYNAMIC FAQ ACCORDIONS MATRIX
-         ========================================================================= -->
-    <section id="faq" class="bg-white py-20 md:py-32 border-b border-gray-100 overflow-hidden">
-        <div class="max-w-4xl mx-auto px-6">
-            <div class="text-center max-w-2xl mx-auto mb-16 scroll-slide-up space-y-3">
-                <span class="text-[10px] font-black tracking-widest uppercase text-[#0A1128] bg-[#D4F53C] px-4 py-1.5 rounded-full inline-block">FAQ</span>
-                <h2 class="text-3xl sm:text-4xl font-black text-[#0A1128] tracking-tight">Got Questions? We Have Answers</h2>
-            </div>
-
-            <div class="space-y-4 max-w-3xl mx-auto text-left">
-                <div 
-                  v-for="(faq, index) in faqs" 
-                  :key="faq.id" 
-                  class="border border-gray-200/80 rounded-2xl bg-gray-50/60 transition-all duration-300 scroll-slide-up overflow-hidden shadow-2xs"
-                >
-                    <button type="button" @click="toggleFaq(index)" class="w-full flex items-center justify-between px-6 py-5 text-left font-extrabold text-sm sm:text-base text-[#0A1128] focus:outline-none cursor-pointer group border-0 bg-transparent">
-                        <span>{{ faq.question }}</span>
-                        <span class="w-8 h-8 rounded-xl bg-white border border-gray-200 flex items-center justify-center font-black text-emerald-700 shadow-2xs transition-transform group-hover:scale-105">{{ activeFaqIndex === index ? '−' : '＋' }}</span>
-                    </button>
-                    <div :class="[activeFaqIndex === index ? 'max-h-60 pb-5 px-6' : 'max-h-0']" class="overflow-hidden transition-all duration-300 ease-in-out">
-                        <p class="text-xs sm:text-sm text-gray-500 font-medium leading-relaxed pt-2 border-t border-gray-200/60">
-                            {{ faq.answer }}
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- =========================================================================
-         CUSTOMER REVIEW SUBMISSION MODAL
+         MODALS (REVIEW SUBMISSION, SUCCESS, FEEDBACK)
          ========================================================================= -->
     <div v-if="isReviewModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-[#0A1128]/75 backdrop-blur-sm p-4">
-      <div class="w-full max-w-lg bg-white border border-gray-100 rounded-[36px] p-8 shadow-2xl relative space-y-6 text-[#0A1128] text-left animate-in fade-in zoom-in duration-200">
-        
+      <div class="w-full max-w-lg bg-white rounded-[32px] p-7 shadow-2xl space-y-5 text-[#0A1128]">
         <div class="flex items-center justify-between border-b border-gray-100 pb-4">
           <div>
-            <span class="text-[10px] font-black tracking-widest bg-[#D4F53C]/40 text-[#0A1128] px-3.5 py-1.5 rounded-full uppercase">Community</span>
-            <h3 class="text-xl font-black tracking-tight text-[#0A1128] mt-1.5">Share Your Experience</h3>
+            <span class="text-[10px] font-black tracking-widest bg-[#D4F53C]/40 px-3 py-1 rounded-full uppercase">Community</span>
+            <h3 class="text-xl font-black mt-1">Share Your Experience</h3>
           </div>
-          <button type="button" @click="isReviewModalOpen = false" class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-[#0A1128] bg-gray-100 rounded-2xl border-0 cursor-pointer outline-none transition">
+          <button
+            type="button"
+            @click="isReviewModalOpen = false"
+            class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-[#0A1128] bg-gray-100 rounded-xl border-0 cursor-pointer"
+          >
             ✕
           </button>
         </div>
 
         <form @submit.prevent="handleReviewSubmit" class="space-y-4">
           <div>
-            <label class="block text-xs font-black text-gray-400 uppercase tracking-wider mb-1.5">Your Name</label>
-            <input 
-              v-model="reviewForm.name" 
-              type="text" 
-              required 
-              placeholder="e.g. Sarah Jenkins" 
-              class="w-full bg-gray-50 border border-gray-200 text-[#0A1128] rounded-2xl px-4 py-3.5 text-xs font-semibold placeholder-gray-400 focus:outline-none focus:border-[#0A1128] focus:bg-white transition shadow-2xs"
+            <label class="block text-xs font-black text-gray-400 uppercase tracking-wider mb-1">Your Name</label>
+            <input
+              v-model="reviewForm.name"
+              type="text"
+              required
+              placeholder="e.g. Chinedu Okafor"
+              class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs font-semibold focus:outline-none focus:border-[#0A1128]"
             />
           </div>
-
           <div>
-            <label class="block text-xs font-black text-gray-400 uppercase tracking-wider mb-1.5">Your Role / Affiliation</label>
-            <input 
-              v-model="reviewForm.role" 
-              type="text" 
-              required 
-              placeholder="e.g. Restaurant Vendor / Daily Commuter" 
-              class="w-full bg-gray-50 border border-gray-200 text-[#0A1128] rounded-2xl px-4 py-3.5 text-xs font-semibold placeholder-gray-400 focus:outline-none focus:border-[#0A1128] focus:bg-white transition shadow-2xs"
+            <label class="block text-xs font-black text-gray-400 uppercase tracking-wider mb-1">Your Role</label>
+            <input
+              v-model="reviewForm.role"
+              type="text"
+              required
+              placeholder="e.g. Food Lover / Restaurant Owner"
+              class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs font-semibold focus:outline-none focus:border-[#0A1128]"
             />
           </div>
-
           <div>
-            <label class="block text-xs font-black text-gray-400 uppercase tracking-wider mb-1.5">Your Review / Testimonial</label>
-            <textarea 
-              v-model="reviewForm.comment" 
-              rows="4" 
-              required 
-              placeholder="Tell us about your delivery or ride experience..." 
-              class="w-full bg-gray-50 border border-gray-200 text-[#0A1128] rounded-2xl px-4 py-3.5 text-xs font-semibold placeholder-gray-400 focus:outline-none focus:border-[#0A1128] focus:bg-white transition shadow-2xs resize-none"
+            <label class="block text-xs font-black text-gray-400 uppercase tracking-wider mb-1">Your Review</label>
+            <textarea
+              v-model="reviewForm.comment"
+              rows="3"
+              required
+              placeholder="Tell us about your order or delivery..."
+              class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs font-semibold focus:outline-none focus:border-[#0A1128] resize-none"
             ></textarea>
           </div>
-
-          <div class="pt-2 flex items-center gap-3">
-            <button 
-              type="button" 
-              @click="isReviewModalOpen = false" 
-              class="w-1/3 py-4 bg-gray-100 hover:bg-gray-200 text-[#0A1128] font-black text-xs uppercase tracking-wider rounded-2xl transition border-0 cursor-pointer outline-none"
+          <div class="pt-1 flex items-center gap-3">
+            <button
+              type="button"
+              @click="isReviewModalOpen = false"
+              class="w-1/3 py-3.5 bg-gray-100 hover:bg-gray-200 font-black text-xs uppercase rounded-2xl border-0 cursor-pointer"
             >
               Cancel
             </button>
-            <button 
-              type="submit" 
-              class="w-2/3 py-4 bg-[#D4F53C] hover:bg-[#c3e334] text-[#0A1128] font-black text-xs uppercase tracking-wider rounded-2xl transition shadow-lg cursor-pointer border-0 flex items-center justify-center space-x-2 outline-none active:scale-95"
+            <button
+              type="submit"
+              class="w-2/3 py-3.5 bg-[#D4F53C] hover:bg-[#c3e334] font-black text-xs uppercase rounded-2xl shadow-md border-0 cursor-pointer"
             >
               Submit Review
             </button>
           </div>
         </form>
-
       </div>
     </div>
 
-    <!-- =========================================================================
-         SUCCESS MODAL POPUP OVERLAY
-         ========================================================================= -->
     <div v-if="isSuccessModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-[#0A1128]/75 backdrop-blur-sm p-4">
-      <div class="w-full max-w-sm bg-white border border-gray-100 rounded-[36px] p-8 shadow-2xl relative space-y-6 text-[#0A1128] text-center animate-in fade-in zoom-in duration-200">
-        
-        <div class="w-16 h-16 bg-[#D4F53C]/25 rounded-2xl flex items-center justify-center mx-auto text-[#0A1128]">
-          <CheckCircle2 class="w-8 h-8 text-[#0A1128]" />
+      <div class="w-full max-w-sm bg-white rounded-[32px] p-7 shadow-2xl space-y-5 text-center">
+        <div class="w-14 h-14 bg-[#D4F53C]/30 rounded-2xl flex items-center justify-center mx-auto">
+          <CheckCircle2 class="w-7 h-7 text-[#0A1128]" />
         </div>
-
-        <div class="space-y-2">
-          <h3 class="text-xl font-black tracking-tight text-[#0A1128]">Review Received!</h3>
-          <p class="text-xs text-gray-500 font-medium leading-relaxed">
-            Thank you for sharing your experience! Your review has been submitted successfully and will appear on the platform once approved.
-          </p>
+        <div class="space-y-1.5">
+          <h3 class="text-xl font-black">Review Received!</h3>
+          <p class="text-xs text-gray-500 font-medium">Thank you! Your review will appear once approved.</p>
         </div>
-
-        <button 
-          type="button" 
-          @click="isSuccessModalOpen = false" 
-          class="w-full py-4 bg-[#0A1128] hover:bg-[#151f42] text-[#D4F53C] font-black text-xs uppercase tracking-wider rounded-2xl transition shadow-lg cursor-pointer border-0 outline-none active:scale-95"
+        <button
+          type="button"
+          @click="isSuccessModalOpen = false"
+          class="w-full py-3.5 bg-[#0A1128] text-[#D4F53C] font-black text-xs uppercase rounded-2xl border-0 cursor-pointer"
         >
-          Awesome, Thanks
+          Done
         </button>
-
       </div>
     </div>
 
-    <!-- =========================================================================
-         CUSTOM FEEDBACK MODAL (REPLACING ALERTS)
-         ========================================================================= -->
     <div v-if="feedbackModal.isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-[#0A1128]/75 backdrop-blur-sm p-4">
-      <div class="w-full max-w-sm bg-white border border-gray-100 rounded-[36px] p-8 shadow-2xl relative space-y-6 text-[#0A1128] text-center animate-in fade-in zoom-in duration-200">
-        
-        <div :class="feedbackModal.type === 'success' ? 'bg-[#D4F53C]/25 text-[#0A1128]' : 'bg-rose-100 text-rose-600'" class="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto">
-          <CheckCircle2 v-if="feedbackModal.type === 'success'" class="w-8 h-8" />
-          <AlertCircle v-else class="w-8 h-8" />
+      <div class="w-full max-w-sm bg-white rounded-[32px] p-7 shadow-2xl space-y-5 text-center">
+        <div :class="feedbackModal.type === 'success' ? 'bg-[#D4F53C]/30 text-[#0A1128]' : 'bg-rose-100 text-rose-600'" class="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto">
+          <CheckCircle2 v-if="feedbackModal.type === 'success'" class="w-7 h-7" />
+          <AlertCircle v-else class="w-7 h-7" />
         </div>
-
-        <div class="space-y-2">
-          <h3 class="text-xl font-black tracking-tight text-[#0A1128]">{{ feedbackModal.title }}</h3>
-          <p class="text-xs text-gray-500 font-medium leading-relaxed">
-            {{ feedbackModal.message }}
-          </p>
+        <div class="space-y-1.5">
+          <h3 class="text-xl font-black">{{ feedbackModal.title }}</h3>
+          <p class="text-xs text-gray-500 font-medium">{{ feedbackModal.message }}</p>
         </div>
-
-        <button 
-          type="button" 
-          @click="feedbackModal.isOpen = false" 
-          class="w-full py-4 bg-[#0A1128] hover:bg-[#151f42] text-[#D4F53C] font-black text-xs uppercase tracking-wider rounded-2xl transition shadow-lg cursor-pointer border-0 outline-none active:scale-95"
+        <button
+          type="button"
+          @click="feedbackModal.isOpen = false"
+          class="w-full py-3.5 bg-[#0A1128] text-[#D4F53C] font-black text-xs uppercase rounded-2xl border-0 cursor-pointer"
         >
           Okay
         </button>
-
       </div>
     </div>
-
   </div>
 </template>
 
 <style scoped>
 .scrollbar-none::-webkit-scrollbar {
   display: none;
-}
-.scroll-slide-up, .scroll-slide-left, .scroll-slide-right {
-    opacity: 1;
-    transform: translateY(0);
-}
-.scroll-animated {
-    opacity: 1 !important;
-    transform: translate(0) !important;
 }
 </style>
