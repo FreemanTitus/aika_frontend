@@ -1,4 +1,10 @@
 /* assets/css/main.css */
+@layer base {
+  input, select, textarea {
+    @apply text-base sm:text-xs; 
+    /* This uses 16px (text-base) on mobile screens and your compact text-xs on larger screens */
+  }
+}
 
 /* Core Scroll-Slide Animations */
 .scroll-slide-up {
@@ -31,4 +37,19 @@
     background-image: 
         radial-gradient(at 0% 100%, rgba(100, 221, 23, 0.15) 0px, transparent 50%),
         radial-gradient(at 100% 100%, rgba(56, 142, 60, 0.08) 0px, transparent 40%);
+}
+
+/* Prevent iOS/Android mobile zoom on input focus by enforcing 16px minimum font size */
+@media screen and (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="search"],
+  input[type="url"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }
