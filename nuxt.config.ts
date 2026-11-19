@@ -145,6 +145,7 @@ export default defineNuxtConfig({
       ],
     },
     injectManifest: {
+      swSrc: 'service-worker/sw.ts',
       globPatterns: ['**/*.{js,css,html,png,svg,ico,mp3}'],
     },
     devOptions: {
