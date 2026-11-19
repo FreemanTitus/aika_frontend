@@ -115,7 +115,7 @@ self.addEventListener('push', (event) => {
   const options = {
     body: data.body || data.message || '',
     icon: data.icon || '/icons/icon-192x192.png',
-    badge: '/favicon-96x96.png',
+    badge: '/favicon/favicon-96x96.png',
     tag: data.tag || 'aika-general',
     renotify: true,
     requireInteraction: isUrgent,
