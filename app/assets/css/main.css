@@ -1,11 +1,4 @@
 /* assets/css/main.css */
-@layer base {
-  input, select, textarea {
-    @apply text-base sm:text-xs; 
-    /* This uses 16px (text-base) on mobile screens and your compact text-xs on larger screens */
-  }
-}
-
 /* Core Scroll-Slide Animations */
 .scroll-slide-up {
     opacity: 0;
