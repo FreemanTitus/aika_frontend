@@ -133,7 +133,13 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close()
 
   const rawUrl = event.notification.data?.url || '/'
-  const resolvedTargetUrl = new URL(rawUrl, self.location.origin).href
+  let target = new URL('/', self.location.origin)
+  try {
+    const candidate = new URL(rawUrl, self.location.origin)
+    if (candidate.origin === self.location.origin) target = candidate
+  } catch { /* keep the home page */ }
+
+  const resolvedTargetUrl = target
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
