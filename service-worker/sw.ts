@@ -58,6 +58,7 @@ registerRoute(
     url.origin.includes('cdnjs.cloudflare.com') ||
     url.origin.includes('fonts.googleapis.com') ||
     url.origin.includes('fonts.gstatic.com'),
+    url.pathname.startsWith('/media/'),
   new StaleWhileRevalidate({
     cacheName: 'aika-cdn-assets-v1',
     plugins: [

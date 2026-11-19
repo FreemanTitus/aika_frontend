@@ -134,10 +134,6 @@ export default defineNuxtConfig({
   buildSW: {
     swSrc: 'service-worker/sw.ts',
     globPatterns: ['**/*.{js,css,html,png,svg,ico,mp3}'],
-    clientsClaim: true,
-    skipWaiting: true,
-    navigateFallback: null,
-    importScripts: ['/push-handler.js'],
     runtimeCaching: [
       {
         urlPattern: /^https?:\/\/[^/]+\/(api|adminPanel|webpush|ws)\//,
