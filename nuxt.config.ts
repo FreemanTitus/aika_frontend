@@ -77,7 +77,7 @@ export default defineNuxtConfig({
         { name: 'mobile-web-app-capable', content: 'yes' },
         { name: 'apple-mobile-web-app-capable', content: 'yes' },
         { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
-        { name: 'apple-mobile-web-app-title', content: 'Aika' }
+        { name: 'apple-mobile-web-app-title', content: 'Aika' },
       ],
       link: [
         // Canonical & Dual-Domain References
@@ -89,7 +89,11 @@ export default defineNuxtConfig({
         { rel: 'icon', type: 'image/png', sizes: '96x96', href: '/favicon-96x96.png' },
         { rel: 'icon', href: '/favicon/favicon.svg', type: 'image/svg+xml', sizes: 'any' },
         { rel: 'icon', href: '/favicon/favicon.ico' },
-        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+        {
+          rel: 'apple-touch-icon',
+          sizes: '180x180',
+          href: '/icons/apple-touch-icon.png',
+        },
       
         { 
           rel: 'stylesheet', 
@@ -106,37 +110,37 @@ export default defineNuxtConfig({
   },
 
   pwa: {
-  strategies: 'buildSW',
-  registerType: 'autoUpdate',
-  manifest: {
-    id: '/',
-    name: 'Aika | Shop, Send, Bike Ride & Earn',
-    short_name: 'Aika',
-    description: 'All-in-one multi-vendor marketplace, logistics, errand, and cross-town ride booking platform in Nigeria.',
-    lang: 'en-NG',
-    theme_color: '#0A1128',
-    background_color: '#ffffff',
-    display: 'standalone',
-    start_url: '/',
-    scope: '/',
-    categories: ['shopping', 'food', 'business'],
-    icons: [
-      { src: '/favicon-96x96.png', sizes: '96x96', type: 'image/png' },
-      { src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-      { src: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-      { src: '/icons/icon-512x512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-    ],
-    shortcuts: [
-      { name: 'Marketplace', short_name: 'Shop', url: '/marketplace', icons: [{ src: '/icons/icon-192x192.png', sizes: '192x192' }] },
-      { name: 'My Orders', short_name: 'Orders', url: '/customer/dashboard', icons: [{ src: '/icons/icon-192x192.png', sizes: '192x192' }] },
-    ],
+    strategies: 'buildSW',
+    registerType: 'autoUpdate',
+    manifest: {
+      id: '/',
+      name: 'Aika | Shop, Send, Bike Ride & Earn',
+      short_name: 'Aika',
+      description: 'All-in-one multi-vendor marketplace, logistics, errand, and cross-town ride booking platform in Nigeria.',
+      lang: 'en-NG',
+      theme_color: '#0A1128',
+      background_color: '#ffffff',
+      display: 'standalone',
+      start_url: '/',
+      scope: '/',
+      categories: ['shopping', 'food', 'business'],
+      icons: [
+        { src: '/favicon-96x96.png', sizes: '96x96', type: 'image/png' },
+        { src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: '/icons/icon-512x512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      ],
+      shortcuts: [
+        { name: 'Marketplace', short_name: 'Shop', url: '/marketplace', icons: [{ src: '/icons/icon-192x192.png', sizes: '192x192' }] },
+        { name: 'My Orders', short_name: 'Orders', url: '/customer/dashboard', icons: [{ src: '/icons/icon-192x192.png', sizes: '192x192' }] },
+      ],
+    },
+    buildSW: {
+      swSrc: 'service-worker/sw.ts',
+      globPatterns: ['**/*.{js,css,html,png,svg,ico,mp3}'],
+    },
+    devOptions: { enabled: false },
   },
-  buildSW: {
-    swSrc: 'service-worker/sw.ts',
-    globPatterns: ['**/*.{js,css,html,png,svg,ico,mp3}'],
-  },
-  devOptions: { enabled: false },
-},
 
   runtimeConfig: {
     // Keys inside public are also accessible on the client-side
