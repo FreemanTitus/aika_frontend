@@ -1,6 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
-const siteUrl = process.env.NUXT_PUBLIC_SITE_URL || 'https://www.useaika.com.ng'
 
+const siteUrl = process.env.NUXT_PUBLIC_SITE_URL || 'https://www.useaika.com.ng'
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
@@ -107,8 +107,7 @@ export default defineNuxtConfig({
 
   pwa: {
     strategies: 'injectManifest',
-    srcDir: 'service-worker',      // folder that holds your service worker source
-    filename: 'sw.ts',             // -> service-worker/sw.ts
+
     registerType: 'autoUpdate',
     manifest: {
       id: '/',
@@ -134,6 +133,7 @@ export default defineNuxtConfig({
       ],
     },
     injectManifest: {
+      swSrc: 'service-worker/sw.ts',
       globPatterns: ['**/*.{js,css,html,png,svg,ico,mp3}'],
       maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
     },
