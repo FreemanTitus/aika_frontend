@@ -106,66 +106,62 @@ export default defineNuxtConfig({
   },
 
   pwa: {
-    strategies: 'buildSW',
+    strategies: 'generateSW',
     registerType: 'autoUpdate',
     manifest: {
+      id: '/',
       name: 'Aika | Shop, Send, Bike Ride & Earn',
       short_name: 'Aika',
       description: 'All-in-one multi-vendor marketplace, logistics, errand, and cross-town ride booking platform in Nigeria.',
+      lang: 'en-NG',
       theme_color: '#0A1128',
       background_color: '#ffffff',
       display: 'standalone',
-      orientation: 'portrait',
       start_url: '/',
       scope: '/',
+      categories: ['shopping', 'food', 'business'],
       icons: [
-        {
-          src: '/favicon-96x96.png',
-          sizes: '96x96',
-          type: 'image/png',
-        },
-        {
-          src: '/icons/icon-192x192.png',
-          sizes: '192x192',
-          type: 'image/png',
-        },
-        {
-          src: '/icons/icon-512x512.png',
-          sizes: '512x512',
-          type: 'image/png',
-        },
-        {
-          src: '/icons/icon-512x512-maskable.png',
-          sizes: '512x512',
-          type: 'image/png',
-          purpose: 'maskable',
-        },
+        { src: '/favicon-96x96.png', sizes: '96x96', type: 'image/png' },
+        { src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: '/icons/icon-512x512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      ],
+      shortcuts: [
+        { name: 'Marketplace', short_name: 'Shop', url: '/marketplace', icons: [{ src: '/icons/icon-192x192.png', sizes: '192x192' }] },
+        { name: 'My Orders', short_name: 'Orders', url: '/customer/dashboard', icons: [{ src: '/icons/icon-192x192.png', sizes: '192x192' }] },
       ],
     },
-    buildSW: {
-      swSrc: 'service-worker/sw.ts',
+    workbox: {
       globPatterns: ['**/*.{js,css,html,png,svg,ico,mp3}'],
+      maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+      cleanupOutdatedCaches: true,
       clientsClaim: true,
       skipWaiting: true,
       navigateFallback: null,
       importScripts: ['/push-handler.js'],
       runtimeCaching: [
         {
-          urlPattern: /^https:\/\/.*\/(api|adminPanel|webpush|ws)\/.*/,
+          // Never cache API, admin, push or websocket traffic (it carries tokens and live data).
+          urlPattern: /^https?:\/\/[^/]+\/(api|adminPanel|webpush|ws)\//,
           handler: 'NetworkOnly',
+        },
+        {
+          // Uploaded product/store images: show the cached copy but refresh it in the background.
+          urlPattern: /^https?:\/\/[^/]+\/media\/.*/i,
+          handler: 'StaleWhileRevalidate',
+          options: {
+            cacheName: 'aika-uploads-v1',
+            expiration: { maxEntries: 150, maxAgeSeconds: 7 * 24 * 60 * 60 },
+            cacheableResponse: { statuses: [0, 200] },
+          },
         },
         {
           urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico|mp3)$/i,
           handler: 'CacheFirst',
           options: {
             cacheName: 'aika-media-cache-v1',
-            expiration: {
-              maxEntries: 100,
-              maxAgeSeconds: 30 * 24 * 60 * 60,
-            },
-            cacheableResponse: {
-              statuses: [0, 200],
-            },
+            expiration: { maxEntries: 100, maxAgeSeconds: 30 * 24 * 60 * 60 },
+            cacheableResponse: { statuses: [0, 200] },
           },
         },
         {
@@ -173,20 +169,13 @@ export default defineNuxtConfig({
           handler: 'StaleWhileRevalidate',
           options: {
             cacheName: 'aika-cdn-assets-v1',
-            expiration: {
-              maxEntries: 30,
-              maxAgeSeconds: 60 * 24 * 60 * 60,
-            },
-            cacheableResponse: {
-              statuses: [0, 200],
-            },
+            expiration: { maxEntries: 30, maxAgeSeconds: 60 * 24 * 60 * 60 },
+            cacheableResponse: { statuses: [0, 200] },
           },
         },
       ],
     },
-    devOptions: {
-      enabled: false,
-    },
+    devOptions: { enabled: false },
   },
 
   runtimeConfig: {
