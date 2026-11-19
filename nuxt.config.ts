@@ -106,7 +106,9 @@ export default defineNuxtConfig({
   },
 
   pwa: {
-    strategies: 'generateSW',
+    strategies: 'injectManifest',
+    srcDir: 'service-worker',      // folder that holds your service worker source
+    filename: 'sw.ts',             // -> service-worker/sw.ts
     registerType: 'autoUpdate',
     manifest: {
       id: '/',
@@ -131,49 +133,9 @@ export default defineNuxtConfig({
         { name: 'My Orders', short_name: 'Orders', url: '/customer/dashboard', icons: [{ src: '/icons/icon-192x192.png', sizes: '192x192' }] },
       ],
     },
-    workbox: {
+    injectManifest: {
       globPatterns: ['**/*.{js,css,html,png,svg,ico,mp3}'],
       maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-      cleanupOutdatedCaches: true,
-      clientsClaim: true,
-      skipWaiting: true,
-      navigateFallback: null,
-      importScripts: ['/push-handler.js'],
-      runtimeCaching: [
-        {
-          // Never cache API, admin, push or websocket traffic (it carries tokens and live data).
-          urlPattern: /^https?:\/\/[^/]+\/(api|adminPanel|webpush|ws)\//,
-          handler: 'NetworkOnly',
-        },
-        {
-          // Uploaded product/store images: show the cached copy but refresh it in the background.
-          urlPattern: /^https?:\/\/[^/]+\/media\/.*/i,
-          handler: 'StaleWhileRevalidate',
-          options: {
-            cacheName: 'aika-uploads-v1',
-            expiration: { maxEntries: 150, maxAgeSeconds: 7 * 24 * 60 * 60 },
-            cacheableResponse: { statuses: [0, 200] },
-          },
-        },
-        {
-          urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico|mp3)$/i,
-          handler: 'CacheFirst',
-          options: {
-            cacheName: 'aika-media-cache-v1',
-            expiration: { maxEntries: 100, maxAgeSeconds: 30 * 24 * 60 * 60 },
-            cacheableResponse: { statuses: [0, 200] },
-          },
-        },
-        {
-          urlPattern: /^https:\/\/(cdnjs\.cloudflare\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)\/.*/,
-          handler: 'StaleWhileRevalidate',
-          options: {
-            cacheName: 'aika-cdn-assets-v1',
-            expiration: { maxEntries: 30, maxAgeSeconds: 60 * 24 * 60 * 60 },
-            cacheableResponse: { statuses: [0, 200] },
-          },
-        },
-      ],
     },
     devOptions: { enabled: false },
   },
