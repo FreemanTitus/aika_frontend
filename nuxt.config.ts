@@ -106,9 +106,7 @@ export default defineNuxtConfig({
   },
 
   pwa: {
-    strategies: 'injectManifest',
-    srcDir: 'service-worker',
-    filename: 'sw.ts',
+    strategies: 'buildSW',
     registerType: 'autoUpdate',
     manifest: {
       name: 'Aika | Shop, Send, Bike Ride & Earn',
@@ -144,9 +142,47 @@ export default defineNuxtConfig({
         },
       ],
     },
-    injectManifest: {
-      swSrc: 'service-worker/sw.ts',
+    workbox: {
       globPatterns: ['**/*.{js,css,html,png,svg,ico,mp3}'],
+      cleanupOutdatedCaches: true,
+      clientsClaim: true,
+      skipWaiting: true,
+      navigateFallback: null,
+      importScripts: ['/push-handler.js'],
+      runtimeCaching: [
+        {
+          urlPattern: /^https:\/\/.*\/(api|adminPanel|webpush|ws)\/.*/,
+          handler: 'NetworkOnly',
+        },
+        {
+          urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico|mp3)$/i,
+          handler: 'CacheFirst',
+          options: {
+            cacheName: 'aika-media-cache-v1',
+            expiration: {
+              maxEntries: 100,
+              maxAgeSeconds: 30 * 24 * 60 * 60,
+            },
+            cacheableResponse: {
+              statuses: [0, 200],
+            },
+          },
+        },
+        {
+          urlPattern: /^https:\/\/(cdnjs\.cloudflare\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)\/.*/,
+          handler: 'StaleWhileRevalidate',
+          options: {
+            cacheName: 'aika-cdn-assets-v1',
+            expiration: {
+              maxEntries: 30,
+              maxAgeSeconds: 60 * 24 * 60 * 60,
+            },
+            cacheableResponse: {
+              statuses: [0, 200],
+            },
+          },
+        },
+      ],
     },
     devOptions: {
       enabled: false,
