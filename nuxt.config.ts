@@ -145,7 +145,6 @@ export default defineNuxtConfig({
     buildSW: {
       swSrc: 'service-worker/sw.ts',
       globPatterns: ['**/*.{js,css,html,png,svg,ico,mp3}'],
-      cleanupOutdatedCaches: true,
       clientsClaim: true,
       skipWaiting: true,
       navigateFallback: null,
