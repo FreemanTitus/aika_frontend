@@ -28,6 +28,7 @@ let activeInstancesCount = 0
 let vendorSocket: WebSocket | null = null
 let currentVendorId: string | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let isIntentionalClose = false
 
 // Exponential Backoff Config Elements
 const BACKOFF_CONFIG = {
@@ -39,9 +40,9 @@ const BACKOFF_CONFIG = {
 let currentReconnectDelay = BACKOFF_CONFIG.initialDelay
 
 export const useVendorSocket = (vendorId: string | null) => {
-
   const config = useRuntimeConfig()
-  const apiBase = config.public.apiBase 
+  const apiBase = config.public.apiBase
+  const authCookie = useCookie<string | null>('auth_token')
 
   const triggerAudioChime = () => {
     if (!alertChime) return
@@ -90,20 +91,24 @@ export const useVendorSocket = (vendorId: string | null) => {
       reconnectTimer = null
     }
 
-    if (!currentVendorId || currentVendorId === 'null') return
+    // Guard: Do not open a WebSocket or loop reconnects if vendorId or auth_token is missing
+    const authToken = authCookie.value?.trim()
+    if (!authToken || !currentVendorId || currentVendorId === 'null') {
+      return
+    }
 
-    // Explicitly destroy existing connection channels if switching vendor ids across panels
+    // Reuse active connection if already open or connecting
     if (vendorSocket) {
       if (vendorSocket.readyState === WebSocket.OPEN || vendorSocket.readyState === WebSocket.CONNECTING) {
-        return // Connection is already active or routing
+        return
       }
       vendorSocket = null
     }
 
-    const authToken = useCookie('auth_token').value
-    const backendHost = apiBase.replace(/^https?:\/\//, '')
+    isIntentionalClose = false
+    const backendHost = apiBase.replace(/^https?:\/\//, '').replace(/\/+$/, '')
     const wsScheme = window.location.protocol === "https:" ? "wss" : "ws"
-    const socketUrl = `${wsScheme}://${backendHost}/ws/vendor/dashboard/${currentVendorId}/?token=${authToken || ''}`
+    const socketUrl = `${wsScheme}://${backendHost}/ws/vendor/dashboard/${encodeURIComponent(currentVendorId)}/?token=${encodeURIComponent(authToken)}`
 
     // (The URL carries the JWT: never log it.)
     vendorSocket = new WebSocket(socketUrl)
@@ -151,8 +156,8 @@ export const useVendorSocket = (vendorId: string | null) => {
       isConnected.value = false
       vendorSocket = null
       
-      // Do not re-trigger reconnection sequences if all components unmounted or parameters vanished
-      if (!currentVendorId) return
+      // Do not re-trigger reconnection sequences on intentional close, unmount, or missing token
+      if (isIntentionalClose || !currentVendorId || !authCookie.value?.trim()) return
 
       // 4003 = the server refused this token/vendor (revoked, expired or not yours): retrying
       // with the same credentials can never succeed.
@@ -172,16 +177,36 @@ export const useVendorSocket = (vendorId: string | null) => {
     }
   }
 
-  // Force-close the pipeline explicitly
-  const closeWebSocketGracefully = () => {
-    if (reconnectTimer) clearTimeout(reconnectTimer)
-    currentVendorId = null
+  const closeSocketInstance = () => {
+    isIntentionalClose = true
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
     if (vendorSocket) {
       vendorSocket.close()
       vendorSocket = null
     }
     isConnected.value = false
   }
+
+  // Force-close the pipeline explicitly and reset vendor context
+  const closeWebSocketGracefully = () => {
+    currentVendorId = null
+    closeSocketInstance()
+  }
+
+  // Automatically disconnect on logout and reconnect on token refresh/login
+  watch(authCookie, (newToken, oldToken) => {
+    const trimmed = newToken?.trim()
+    if (!trimmed) {
+      closeSocketInstance()
+    } else if (trimmed !== oldToken?.trim() && activeInstancesCount > 0 && currentVendorId) {
+      closeSocketInstance()
+      currentReconnectDelay = BACKOFF_CONFIG.initialDelay
+      initWebSocket()
+    }
+  })
 
   onMounted(() => {
     activeInstancesCount++
@@ -207,13 +232,17 @@ export const useVendorSocket = (vendorId: string | null) => {
 
     // Completely drop socket ports only if no matching layout panels or dashboard widgets remain alive
     if (activeInstancesCount <= 0) {
+      activeInstancesCount = 0
       closeWebSocketGracefully()
     }
   })
 
   // Watch for dynamic route argument mutation parameters (e.g. admin toggling between target dashboards)
   watch(() => vendorId, (newId) => {
-    if (newId && newId !== currentVendorId) {
+    if (!newId || newId === 'null') {
+      closeWebSocketGracefully()
+    } else if (newId !== currentVendorId) {
+      closeSocketInstance()
       currentVendorId = newId
       currentReconnectDelay = BACKOFF_CONFIG.initialDelay
       initWebSocket()

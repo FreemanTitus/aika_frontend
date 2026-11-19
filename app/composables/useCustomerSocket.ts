@@ -1,5 +1,5 @@
 // composables/useCustomerSocket.ts
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useCookie, useRuntimeConfig } from '#app'
 
 export type SocketConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting'
@@ -44,6 +44,7 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let reconnectAttempts = 0
 let activeUserId: string | null = null
 let intentionalClose = false
+let isAuthWatcherRegistered = false
 
 const MAX_RECONNECT_DELAY = 30000
 const MAX_NOTIFICATIONS = 50
@@ -185,7 +186,8 @@ export const useCustomerSocket = () => {
   }
 
   const scheduleReconnect = (): void => {
-    if (intentionalClose || !import.meta.client || !authToken.value || !activeUserId) return
+    const token = authToken.value?.trim()
+    if (intentionalClose || !import.meta.client || !token || !activeUserId) return
     clearReconnectTimer()
 
     const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), MAX_RECONNECT_DELAY)
@@ -200,10 +202,12 @@ export const useCustomerSocket = () => {
   const connect = (explicitUserId: string | number | null = null): void => {
     if (!import.meta.client) return
 
-    const token = authToken.value
+    const token = authToken.value?.trim()
     const targetUserId = resolveUserId(explicitUserId)
 
+    // Guard: Do not open a WebSocket or trigger backoff loops without a valid token and user ID
     if (!token || !targetUserId) {
+      clearReconnectTimer()
       connectionStatus.value = 'disconnected'
       return
     }
@@ -255,8 +259,8 @@ export const useCustomerSocket = () => {
         isConnected.value = false
         socketState.value = null
 
-        // 4003 = unauthorized / invalid token; do not loop reconnects
-        if (event.code === 4003 || intentionalClose) {
+        // 4003 = unauthorized / invalid token, or token cleared; do not loop reconnects
+        if (event.code === 4003 || intentionalClose || !authToken.value?.trim()) {
           connectionStatus.value = 'disconnected'
           return
         }
@@ -287,6 +291,21 @@ export const useCustomerSocket = () => {
 
     isConnected.value = false
     connectionStatus.value = 'disconnected'
+  }
+
+  // Register a single global watcher so logout cleanly disconnects and token refresh reconnects
+  if (import.meta.client && !isAuthWatcherRegistered) {
+    isAuthWatcherRegistered = true
+    watch(authToken, (newToken, oldToken) => {
+      const trimmed = newToken?.trim()
+      if (!trimmed) {
+        disconnect(true)
+      } else if (trimmed !== oldToken?.trim()) {
+        reconnectAttempts = 0
+        disconnect(false)
+        connect(activeUserId)
+      }
+    })
   }
 
   const onEvent = (callback: CustomerSocketListener): (() => void) => {

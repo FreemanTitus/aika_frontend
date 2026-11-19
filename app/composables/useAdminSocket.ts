@@ -1,5 +1,5 @@
 // composables/useAdminSocket.ts
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useCookie, useRuntimeConfig } from '#app'
 
 // Global states shared across admin layouts and control desks
@@ -26,6 +26,7 @@ const playNotificationSound = () => {
 let activeInstancesCount = 0
 let adminSocket: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let isIntentionalClose = false
 
 // Exponential Backoff Config Elements for Admin Socket
 const BACKOFF_CONFIG = {
@@ -38,7 +39,8 @@ let currentReconnectDelay = BACKOFF_CONFIG.initialDelay
 
 export const useAdminSocket = () => {
   const config = useRuntimeConfig()
-  const apiBase = config.public.apiBase 
+  const apiBase = config.public.apiBase
+  const authCookie = useCookie<string | null>('auth_token')
 
   const triggerAudioChime = () => {
     if (!alertChime) return
@@ -62,7 +64,6 @@ export const useAdminSocket = () => {
           alertChime.muted = false // Unmute for actual notifications
         }
         isAudioUnlocked.value = true
-        // console.log("%c🔊 Admin Audio: Live notification chimes primed successfully.", "color: #3b82f6; font-weight: bold;")
         removeUnlockListeners()
       })
       .catch(() => { 
@@ -90,6 +91,12 @@ export const useAdminSocket = () => {
       reconnectTimer = null
     }
 
+    // Guard: Do not open a WebSocket or loop reconnects if auth_token is missing
+    const authToken = authCookie.value?.trim()
+    if (!authToken) {
+      return
+    }
+
     if (adminSocket) {
       if (adminSocket.readyState === WebSocket.OPEN || adminSocket.readyState === WebSocket.CONNECTING) {
         return
@@ -97,25 +104,21 @@ export const useAdminSocket = () => {
       adminSocket = null
     }
 
-    const authToken = useCookie('auth_token').value
+    isIntentionalClose = false
     const backendHost = apiBase.replace(/^https?:\/\//, '')
     const wsScheme = window.location.protocol === "https:" ? "wss" : "ws"
-    const socketUrl = `${wsScheme}://${backendHost}/ws/admin/notifications?token=${authToken || ''}`
+    const socketUrl = `${wsScheme}://${backendHost}/ws/admin/notifications?token=${encodeURIComponent(authToken)}`
 
-    // console.log(`%c⚡ Admin WebSocket: Initializing handshake path...`, "color: #3b82f6; font-weight: bold;", socketUrl)
     adminSocket = new WebSocket(socketUrl)
 
     adminSocket.onopen = () => {
       isConnected.value = true
       currentReconnectDelay = BACKOFF_CONFIG.initialDelay
-      // console.log("%c⚡ Admin WebSocket: Connected successfully to control desk!", "color: #10b981; font-weight: bold; background-color: #ecfdf5; padding: 4px; border-radius: 4px;")
     }
 
     adminSocket.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data)
-        // console.log("ADMIN WEBSOCKET PAYLOAD", "background: #1d4ed8; color: white; font-weight: bold; padding: 2px 6px; border-radius: 3px;", data)
-
         const eventType = data.event || data.type
 
         // SILENT ROUTINE vs URGENT AUDIO FILTER:
@@ -151,8 +154,17 @@ export const useAdminSocket = () => {
       isConnected.value = false
       adminSocket = null
 
+      if (isIntentionalClose) {
+        return
+      }
+
       if (e.code === 4003) {
         console.warn('Admin WebSocket refused by the server (4003). Not reconnecting.')
+        return
+      }
+
+      // Stop backoff loop if token was cleared while disconnected
+      if (!authCookie.value?.trim()) {
         return
       }
 
@@ -168,7 +180,11 @@ export const useAdminSocket = () => {
   }
 
   const closeAdminSocketGracefully = () => {
-    if (reconnectTimer) clearTimeout(reconnectTimer)
+    isIntentionalClose = true
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
     removeUnlockListeners()
     if (adminSocket) {
       adminSocket.close()
@@ -176,6 +192,17 @@ export const useAdminSocket = () => {
     }
     isConnected.value = false
   }
+
+  // Automatically connect when auth_token is populated/refreshed, and close when cleared
+  watch(authCookie, (newToken, oldToken) => {
+    if (!newToken?.trim()) {
+      closeAdminSocketGracefully()
+    } else if (newToken !== oldToken && activeInstancesCount > 0) {
+      closeAdminSocketGracefully()
+      currentReconnectDelay = BACKOFF_CONFIG.initialDelay
+      initAdminWebSocket()
+    }
+  })
 
   onMounted(() => {
     activeInstancesCount++
@@ -194,6 +221,7 @@ export const useAdminSocket = () => {
   onUnmounted(() => {
     activeInstancesCount--
     if (activeInstancesCount <= 0) {
+      activeInstancesCount = 0
       closeAdminSocketGracefully()
     }
   })

@@ -1,10 +1,10 @@
 // composables/useRiderSocket.ts
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useCookie, useRuntimeConfig } from '#app'
 
 export const useRiderSocket = () => {
   const config = useRuntimeConfig()
-  const authToken = useCookie('auth_token')
+  const authToken = useCookie<string | null>('auth_token')
 
   const isConnected = ref(false)
   const riderStatusPayload = ref<any>(null)
@@ -12,19 +12,38 @@ export const useRiderSocket = () => {
   const newJobAlertPayload = ref<any>(null) // <--- Track incoming job pool alerts
   
   let socket: WebSocket | null = null
-  let reconnectTimer: any = null
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
   let manuallyClosed = false
+  let isMounted = false
   let retryDelay = 3000
 
+  const clearTimer = () => {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+  }
+
   const connect = () => {
-    if (!authToken.value) return
+    clearTimer()
+
+    const token = authToken.value?.trim()
+    if (!token) {
+      isConnected.value = false
+      return
+    }
+
+    if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+      return
+    }
+
     manuallyClosed = false
 
-    const apiBaseUrl = config.public.apiBase || 'http://localhost:8000'
+    const apiBaseUrl = (config.public.apiBase || 'http://localhost:8000').replace(/\/+$/, '')
     const wsProtocol = apiBaseUrl.startsWith('https') ? 'wss://' : 'ws://'
     const cleanHost = apiBaseUrl.replace(/^https?:\/\//, '')
     
-    const wsUrl = `${wsProtocol}${cleanHost}/ws/rider/notifications?token=${encodeURIComponent(authToken.value)}`
+    const wsUrl = `${wsProtocol}${cleanHost}/ws/rider/notifications?token=${encodeURIComponent(token)}`
 
     socket = new WebSocket(wsUrl)
 
@@ -52,9 +71,13 @@ export const useRiderSocket = () => {
 
     socket.onclose = (e) => {
       isConnected.value = false
-      // disconnect() used to leave a reconnect timer behind, so the socket came back after the
-      // page was left. Also never retry a refused token (4003); back off otherwise.
-      if (manuallyClosed || e.code === 4003) return
+      socket = null
+
+      // Never retry on manual close, refused token (4003), or missing auth_token
+      if (manuallyClosed || e.code === 4003 || !authToken.value?.trim()) {
+        return
+      }
+
       reconnectTimer = setTimeout(connect, retryDelay)
       retryDelay = Math.min(retryDelay * 2, 30000)
     }
@@ -67,7 +90,7 @@ export const useRiderSocket = () => {
 
   const disconnect = () => {
     manuallyClosed = true
-    if (reconnectTimer) clearTimeout(reconnectTimer)
+    clearTimer()
     if (socket) {
       socket.close()
       socket = null
@@ -75,8 +98,27 @@ export const useRiderSocket = () => {
     isConnected.value = false
   }
 
-  onMounted(() => { connect() })
-  onUnmounted(() => { disconnect() })
+  // Automatically disconnect on logout and reconnect on token refresh/login
+  watch(authToken, (newToken, oldToken) => {
+    const trimmed = newToken?.trim()
+    if (!trimmed) {
+      disconnect()
+    } else if (trimmed !== oldToken?.trim() && isMounted) {
+      disconnect()
+      retryDelay = 3000
+      connect()
+    }
+  })
+
+  onMounted(() => {
+    isMounted = true
+    connect()
+  })
+
+  onUnmounted(() => {
+    isMounted = false
+    disconnect()
+  })
 
   return {
     isConnected,
