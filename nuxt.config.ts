@@ -86,7 +86,7 @@ export default defineNuxtConfig({
         { rel: 'alternate', hreflang: 'x-default', href: 'https://www.useaika.ng' },
 
         // Favicons Asset Matrix (@vite-pwa/nuxt injects /manifest.webmanifest automatically)
-        { rel: 'icon', type: 'image/png', sizes: '96x96', href: '/favicon-96x96.png' },
+        { rel: 'icon', type: 'image/png', sizes: '96x96', href: '/favicon/favicon-96x96.png' },
         { rel: 'icon', href: '/favicon/favicon.svg', type: 'image/svg+xml', sizes: 'any' },
         { rel: 'icon', href: '/favicon/favicon.ico' },
         {
