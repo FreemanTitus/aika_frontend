@@ -96,14 +96,6 @@ const currentYear = new Date().getFullYear()
           
           <div class="hidden md:block">
             <NuxtLink 
-              v-if="isAuthenticated" 
-              :to="dashboardRoute" 
-              class="bg-[#0A1128] text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-opacity-90 transition shadow-lg shadow-[#0A1128]/10"
-            >
-              Dashboard
-            </NuxtLink>
-            <NuxtLink 
-              v-else 
               to="/auth/login" 
               class="bg-[#0A1128] text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-[#D4F53C] hover:text-[#0A1128] transition shadow-lg shadow-[#0A1128]/10 cursor-pointer"
             >
@@ -155,16 +147,6 @@ const currentYear = new Date().getFullYear()
 
               <div class="pt-4 border-t border-gray-100/80 space-y-3">
                   <NuxtLink 
-                    v-if="isAuthenticated" 
-                    :to="dashboardRoute" 
-                    @click="closeMenu" 
-                    to="/dashboard" 
-                    class="block bg-[#0A1128] text-white px-5 py-3.5 rounded-xl font-black text-xs uppercase tracking-wider text-center transition shadow-lg shadow-[#0A1128]/10"
-                  >
-                    Dashboard
-                  </NuxtLink>
-                  <NuxtLink 
-                    v-else 
                     @click="closeMenu" 
                     to="/auth/login" 
                     class="block text-center bg-[#0A1128] text-white py-3.5 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-[#D4F53C] hover:text-[#0A1128] transition shadow-lg shadow-[#0A1128]/10"

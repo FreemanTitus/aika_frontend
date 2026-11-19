@@ -57,7 +57,7 @@ registerRoute(
   ({ url }) =>
     url.origin.includes('cdnjs.cloudflare.com') ||
     url.origin.includes('fonts.googleapis.com') ||
-    url.origin.includes('fonts.gstatic.com'),
+    url.origin.includes('fonts.gstatic.com') ||
     url.pathname.startsWith('/media/'),
   new StaleWhileRevalidate({
     cacheName: 'aika-cdn-assets-v1',
@@ -139,7 +139,7 @@ self.addEventListener('notificationclick', (event) => {
     if (candidate.origin === self.location.origin) target = candidate
   } catch { /* keep the home page */ }
 
-  const resolvedTargetUrl = target
+  const resolvedTargetUrl = target.href
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
@@ -154,7 +154,7 @@ self.addEventListener('notificationclick', (event) => {
       for (const client of windowClients) {
         if (client.url.startsWith(self.location.origin) && 'focus' in client) {
           if ('navigate' in client && typeof (client as WindowClient).navigate === 'function') {
-            ;(client as WindowClient).navigate(resolvedTargetUrl)
+            return (client as WindowClient).navigate(resolvedTargetUrl).then(() => client.focus())
           }
           return client.focus()
         }
