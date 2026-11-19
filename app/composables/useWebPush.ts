@@ -1,6 +1,15 @@
 // composables/useWebPush.ts
 import { useRuntimeConfig, useCookie } from '#app'
 
+const getBrowserName = (): string => {
+  const ua = navigator.userAgent
+  if (ua.includes('Firefox')) return 'Firefox'
+  if (ua.includes('Edg')) return 'Edge'
+  if (ua.includes('Chrome')) return 'Chrome'
+  if (ua.includes('Safari')) return 'Safari'
+  return 'Unknown'
+}
+
 export const useWebPush = () => {
   const config = useRuntimeConfig()
   const apiBase = config.public.apiBase
@@ -12,7 +21,9 @@ export const useWebPush = () => {
     }
 
     try {
-      const registration = await navigator.serviceWorker.register('/sw.js')
+      await navigator.serviceWorker.register('/sw.js')
+      const registration = await navigator.serviceWorker.ready
+
       const permission = await Notification.requestPermission()
       if (permission !== 'granted') return
 
@@ -35,8 +46,10 @@ export const useWebPush = () => {
           ...(authToken.value ? { Authorization: `Bearer ${authToken.value}` } : {})
         },
         body: {
-          status: 'subscribe',
+          status_type: 'subscribe',
           subscription: subscription.toJSON(),
+          browser: getBrowserName(),
+          user_agent: navigator.userAgent,
           group: groupName
         }
       })

@@ -7,7 +7,8 @@ export default defineNuxtConfig({
 
   modules: [
     '@nuxtjs/tailwindcss',
-    '@pinia/nuxt'
+    '@pinia/nuxt',
+    '@vite-pwa/nuxt',
   ],
 
   // Global CSS registration files
@@ -28,7 +29,6 @@ export default defineNuxtConfig({
         { 
           name: 'viewport', 
           content: 'width=device-width, initial-scale=1.0, maximum-scale=5.0'
-          
         },
         { 'http-equiv': 'X-UA-Compatible', content: 'IE=edge' },
         
@@ -71,10 +71,11 @@ export default defineNuxtConfig({
         { name: 'twitter:image', content: `${siteUrl}/images/og-share-preview.png` },
         { name: 'twitter:image:alt', content: 'Aika — Marketplace, Logistics, Errands & Ride Booking App' },
 
-        // Mobile Status Bar Overrides (Aligned with Brand Teal #005F69)
-        { name: 'theme-color', content: '#005F69', media: '(prefers-color-scheme: light)' },
+        // Mobile Status Bar Overrides (Aligned with Brand Navy #0A1128 & Slate #0f172a)
+        { name: 'theme-color', content: '#0A1128', media: '(prefers-color-scheme: light)' },
         { name: 'theme-color', content: '#0f172a', media: '(prefers-color-scheme: dark)' },
         { name: 'mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-capable', content: 'yes' },
         { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
         { name: 'apple-mobile-web-app-title', content: 'Aika' }
       ],
@@ -84,12 +85,11 @@ export default defineNuxtConfig({
         { rel: 'alternate', hreflang: 'en-NG', href: 'https://www.useaika.com.ng' },
         { rel: 'alternate', hreflang: 'x-default', href: 'https://www.useaika.ng' },
 
-        // Favicons Asset Matrix
-        { rel: 'icon', type: 'image/png', sizes: '96x96', href: '/favicon/favicon-96x96.png' },
+        // Favicons Asset Matrix (@vite-pwa/nuxt injects /manifest.webmanifest automatically)
+        { rel: 'icon', type: 'image/png', sizes: '96x96', href: '/favicon-96x96.png' },
         { rel: 'icon', href: '/favicon/favicon.svg', type: 'image/svg+xml', sizes: 'any' },
         { rel: 'icon', href: '/favicon/favicon.ico' },
-        { rel: 'apple-touch-icon', href: '/favicon/apple-touch-icon.png' },
-        { rel: 'manifest', href: '/site.webmanifest' }, 
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
       
         { 
           rel: 'stylesheet', 
@@ -103,6 +103,53 @@ export default defineNuxtConfig({
         }
       ]
     }
+  },
+
+  pwa: {
+    strategies: 'injectManifest',
+    srcDir: 'service-worker',
+    filename: 'sw.ts',
+    registerType: 'autoUpdate',
+    manifest: {
+      name: 'Aika | Shop, Send, Bike Ride & Earn',
+      short_name: 'Aika',
+      description: 'All-in-one multi-vendor marketplace, logistics, errand, and cross-town ride booking platform in Nigeria.',
+      theme_color: '#0A1128',
+      background_color: '#ffffff',
+      display: 'standalone',
+      orientation: 'portrait',
+      start_url: '/',
+      scope: '/',
+      icons: [
+        {
+          src: '/favicon-96x96.png',
+          sizes: '96x96',
+          type: 'image/png',
+        },
+        {
+          src: '/icons/icon-192x192.png',
+          sizes: '192x192',
+          type: 'image/png',
+        },
+        {
+          src: '/icons/icon-512x512.png',
+          sizes: '512x512',
+          type: 'image/png',
+        },
+        {
+          src: '/icons/icon-512x512-maskable.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'maskable',
+        },
+      ],
+    },
+    injectManifest: {
+      globPatterns: ['**/*.{js,css,html,png,svg,ico,mp3}'],
+    },
+    devOptions: {
+      enabled: false,
+    },
   },
 
   runtimeConfig: {

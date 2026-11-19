@@ -1,2 +1,15 @@
-User-Agent: *
-Disallow:
+User-agent: *
+Allow: /
+
+# Private / transactional areas
+Disallow: /adminPanel/
+Disallow: /api/
+Disallow: /webpush/
+Disallow: /ws/
+Disallow: /checkout
+Disallow: /wallet
+Disallow: /profile
+Disallow: /rider/
+Disallow: /vendor/
+
+Sitemap: https://www.useaika.com.ng/sitemap.xml
