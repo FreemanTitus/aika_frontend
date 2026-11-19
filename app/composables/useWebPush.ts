@@ -28,7 +28,7 @@ export const useWebPush = () => {
         applicationServerKey: convertedVapidKey
       })
 
-      await $fetch(`${apiBase}/webpush/save_information/`, {
+      await $fetch(`${apiBase}/webpush/save_information`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
