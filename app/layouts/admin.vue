@@ -7,9 +7,6 @@ import { useAdminSocket } from '~/composables/useAdminSocket'
 import { useWebPush } from '~/composables/useWebPush'
 
 const { registerServiceWorker } = useWebPush()
-onMounted(() => {
-  registerServiceWorker('riders') // or 'merchants', 'customers', etc.
-})
 
 const isSidebarOpen = ref<boolean>(false)
 const isNotificationsOpen = ref<boolean>(false)
@@ -106,7 +103,13 @@ const closeDropdownOnClickOutside = (e: MouseEvent) => {
   }
 }
 
+// Automatically close mobile drawer when navigating to a new route
+watch(() => router.currentRoute.value.fullPath, () => {
+  isSidebarOpen.value = false
+})
+
 onMounted(() => {
+  registerServiceWorker('admin')
   if (typeof window !== 'undefined') {
     window.addEventListener('click', closeDropdownOnClickOutside)
   }
@@ -245,12 +248,10 @@ const handleLogout = async (): Promise<void> => {
         <button 
           @click="isSidebarOpen = true" 
           type="button"
-          class="md:hidden text-white bg-white/5 border border-white/10 p-2.5 rounded-xl hover:bg-white/10 transition border-0 outline-none cursor-pointer flex items-center justify-center shadow-sm" 
+          class="md:hidden text-white bg-white/5 border border-white/10 p-2.5 rounded-xl hover:bg-white/10 transition outline-none cursor-pointer flex items-center justify-center shadow-sm" 
           aria-label="Open Mobile Menu"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5 text-[#84cc16]">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
-          </svg>
+          <Menu class="w-5 h-5 text-[#84cc16]" />
         </button>
 
       </div>
@@ -258,6 +259,157 @@ const handleLogout = async (): Promise<void> => {
 
     <!-- Main Workspace Layout with Desktop Collapsible Sidebar -->
     <div class="flex flex-1 w-full relative">
+
+      <!-- Mobile Slide-Over Sidebar Drawer -->
+      <Teleport to="body">
+        <transition name="fade">
+          <div
+            v-if="isSidebarOpen"
+            class="fixed inset-0 z-50 md:hidden flex"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Admin Navigation Menu"
+          >
+            <!-- Backdrop -->
+            <div
+              class="fixed inset-0 bg-[#0A1128]/60 backdrop-blur-xs"
+              @click="isSidebarOpen = false"
+            ></div>
+
+            <!-- Drawer Panel -->
+            <aside class="relative z-10 w-72 max-w-[82vw] bg-white h-full overflow-y-auto shadow-2xl flex flex-col py-5 space-y-5">
+              <div class="px-4 pb-3 border-b border-gray-100 flex items-center justify-between">
+                <div class="flex items-center space-x-2.5">
+                  <img src="/images/logo.png" alt="Aika Logo" class="h-7 w-auto object-contain">
+                  <span class="text-xs font-black uppercase tracking-wider text-[#0A1128]">Aika Admin</span>
+                </div>
+                <button
+                  @click="isSidebarOpen = false"
+                  type="button"
+                  class="p-2 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-[#0A1128] transition cursor-pointer"
+                  aria-label="Close Menu"
+                >
+                  <X class="w-5 h-5" />
+                </button>
+              </div>
+
+              <div class="space-y-4 px-4" @click="($event.target as HTMLElement)?.closest('a') && (isSidebarOpen = false)">
+                <!-- Control Desk -->
+                <NuxtLink 
+                  to="/admin/dashboard" 
+                  class="flex items-center gap-3 px-4 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition group text-gray-700 hover:bg-gray-100 hover:text-[#0A1128]"
+                  active-class="bg-[#0A1128] text-white hover:bg-[#0A1128] hover:text-white shadow-sm"
+                >
+                  <LayoutDashboard class="w-4 h-4 text-[#84cc16]" /> Control Desk
+                </NuxtLink>
+
+                <!-- SECTION 1: OPERATIONS -->
+                <div class="space-y-1">
+                  <button @click="toggleSection('operations')" type="button" class="w-full flex items-center justify-between text-[10px] font-black uppercase text-gray-400 tracking-widest px-3 py-2 cursor-pointer hover:text-gray-600 transition">
+                    <span>Operations</span>
+                    <ChevronDown :class="{ 'rotate-180': openSections.operations }" class="w-3.5 h-3.5 transition-transform" />
+                  </button>
+                  <div v-if="openSections.operations" class="space-y-1 pl-2 border-l-2 border-gray-100 ml-2">
+                    <NuxtLink to="/admin/merchants" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-gray-600 hover:bg-gray-100 hover:text-[#0A1128] transition" active-class="bg-[#0A1128] text-white hover:bg-[#0A1128] hover:text-white">
+                      <Store class="w-4 h-4 text-gray-400" /> Merchants
+                    </NuxtLink>
+                    <NuxtLink to="/admin/staff" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-gray-600 hover:bg-gray-100 hover:text-[#0A1128] transition" active-class="bg-[#0A1128] text-white hover:bg-[#0A1128] hover:text-white">
+                      <Users class="w-4 h-4 text-gray-400" /> Staff
+                    </NuxtLink>
+                    <NuxtLink to="/admin/agents" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-gray-600 hover:bg-gray-100 hover:text-[#0A1128] transition" active-class="bg-[#0A1128] text-white hover:bg-[#0A1128] hover:text-white">
+                      <Users class="w-4 h-4 text-gray-400" /> Agents
+                    </NuxtLink>
+                    <NuxtLink to="/admin/customers" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-gray-600 hover:bg-gray-100 hover:text-[#0A1128] transition" active-class="bg-[#0A1128] text-white hover:bg-[#0A1128] hover:text-white">
+                      <Users class="w-4 h-4 text-gray-400" /> Customers
+                    </NuxtLink>
+                    <NuxtLink to="/admin/riders" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-gray-600 hover:bg-gray-100 hover:text-[#0A1128] transition" active-class="bg-[#0A1128] text-white hover:bg-[#0A1128] hover:text-white">
+                      <Bike class="w-4 h-4 text-gray-400" /> Riders
+                    </NuxtLink>
+                    <NuxtLink to="/admin/tracking" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-gray-600 hover:bg-gray-100 hover:text-[#0A1128] transition" active-class="bg-[#0A1128] text-white hover:bg-[#0A1128] hover:text-white">
+                      <Navigation class="w-4 h-4 text-gray-400" /> Track Map
+                    </NuxtLink>
+                    <NuxtLink to="/admin/locations" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-gray-600 hover:bg-gray-100 hover:text-[#0A1128] transition" active-class="bg-[#0A1128] text-white hover:bg-[#0A1128] hover:text-white">
+                      <MapPin class="w-4 h-4 text-gray-400" /> Coverage Areas
+                    </NuxtLink>
+                  </div>
+                </div>
+
+                <!-- SECTION 2: CONTENT & MARKETING -->
+                <div class="space-y-1">
+                  <button @click="toggleSection('content')" type="button" class="w-full flex items-center justify-between text-[10px] font-black uppercase text-gray-400 tracking-widest px-3 py-2 cursor-pointer hover:text-gray-600 transition">
+                    <span>Content &amp; Marketing</span>
+                    <ChevronDown :class="{ 'rotate-180': openSections.content }" class="w-3.5 h-3.5 transition-transform" />
+                  </button>
+                  <div v-if="openSections.content" class="space-y-1 pl-2 border-l-2 border-gray-100 ml-2">
+                    <NuxtLink to="/admin/reviews" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-gray-600 hover:bg-gray-100 hover:text-[#0A1128] transition" active-class="bg-[#0A1128] text-white hover:bg-[#0A1128] hover:text-white">
+                      <MessageSquare class="w-4 h-4 text-gray-400" /> Customer Reviews
+                    </NuxtLink>
+                    <NuxtLink to="/admin/faqs" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-gray-600 hover:bg-gray-100 hover:text-[#0A1128] transition" active-class="bg-[#0A1128] text-white hover:bg-[#0A1128] hover:text-white">
+                      <HelpCircle class="w-4 h-4 text-gray-400" /> Manage FAQs
+                    </NuxtLink>
+                    <NuxtLink to="/admin/newsletter" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-gray-600 hover:bg-gray-100 hover:text-[#0A1128] transition" active-class="bg-[#0A1128] text-white hover:bg-[#0A1128] hover:text-white">
+                      <Mail class="w-4 h-4 text-gray-400" /> Newsletter
+                    </NuxtLink>
+                    <NuxtLink to="/admin/marketing" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-gray-600 hover:bg-gray-100 hover:text-[#0A1128] transition" active-class="bg-[#0A1128] text-white hover:bg-[#0A1128] hover:text-white">
+                      <Megaphone class="w-4 h-4 text-gray-400" /> Marketing &amp; Promos
+                    </NuxtLink>
+                    <NuxtLink to="/admin/marketing/broadcasts" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-gray-600 hover:bg-gray-100 hover:text-[#0A1128] transition" active-class="bg-[#0A1128] text-white hover:bg-[#0A1128] hover:text-white">
+                      <Bell class="w-4 h-4 text-gray-400" /> Push Broadcasting
+                    </NuxtLink>
+                  </div>
+                </div>
+
+                <!-- SECTION 3: FINANCE & SYSTEM -->
+                <div class="space-y-1">
+                  <button @click="toggleSection('system')" type="button" class="w-full flex items-center justify-between text-[10px] font-black uppercase text-gray-400 tracking-widest px-3 py-2 cursor-pointer hover:text-gray-600 transition">
+                    <span>Finance &amp; Audits</span>
+                    <ChevronDown :class="{ 'rotate-180': openSections.system }" class="w-3.5 h-3.5 transition-transform" />
+                  </button>
+                  <div v-if="openSections.system" class="space-y-1 pl-2 border-l-2 border-gray-100 ml-2">
+                    <NuxtLink to="/admin/subscriptions" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-gray-600 hover:bg-gray-100 hover:text-[#0A1128] transition" active-class="bg-[#0A1128] text-white hover:bg-[#0A1128] hover:text-white">
+                      <Layers class="w-4 h-4 text-gray-400" /> Subscriptions
+                    </NuxtLink>
+                    <NuxtLink to="/admin/transactions" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-gray-600 hover:bg-gray-100 hover:text-[#0A1128] transition" active-class="bg-[#0A1128] text-white hover:bg-[#0A1128] hover:text-white">
+                      <Layers class="w-4 h-4 text-gray-400" /> Transactions
+                    </NuxtLink>
+                    <NuxtLink 
+                      to="/admin/disputes" 
+                      @click="hasUnreadDisputes = false"
+                      class="flex items-center justify-between px-3 py-2.5 rounded-xl font-bold text-xs text-gray-600 hover:bg-gray-100 hover:text-[#0A1128] transition relative" 
+                      active-class="bg-[#0A1128] text-white hover:bg-[#0A1128] hover:text-white"
+                    >
+                      <div class="flex items-center gap-2.5">
+                        <ShieldAlert class="w-4 h-4 text-gray-400" /> Disputes &amp; Refunds
+                      </div>
+                      <span v-if="hasUnreadDisputes" class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping shadow-[0_0_10px_rgba(244,63,94,0.9)]"></span>
+                    </NuxtLink>
+                    <NuxtLink to="/admin/settings/referral" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-gray-600 hover:bg-gray-100 hover:text-[#0A1128] transition" active-class="bg-[#0A1128] text-white hover:bg-[#0A1128] hover:text-white">
+                      <Gift class="w-4 h-4 text-gray-400" /> Referral Settings
+                    </NuxtLink>
+                    <NuxtLink to="/admin/settings/delivery-config" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-gray-600 hover:bg-gray-100 hover:text-[#0A1128] transition" active-class="bg-[#0A1128] text-white hover:bg-[#0A1128] hover:text-white">
+                      <Gift class="w-4 h-4 text-gray-400" /> Delivery Config
+                    </NuxtLink>
+                    <NuxtLink to="/admin/audits" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-gray-600 hover:bg-gray-100 hover:text-[#0A1128] transition" active-class="bg-[#0A1128] text-white hover:bg-[#0A1128] hover:text-white">
+                      <Activity class="w-4 h-4 text-gray-400" /> System Audit Logs
+                    </NuxtLink>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="isAuthenticated" class="mt-auto px-4 pt-4 border-t border-gray-100">
+                <button
+                  @click="isSidebarOpen = false; handleLogout()"
+                  type="button"
+                  class="w-full bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white text-xs font-black px-4 py-2.5 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <LogOut class="w-4 h-4" />
+                  <span>Logout</span>
+                </button>
+              </div>
+            </aside>
+          </div>
+        </transition>
+      </Teleport>
       
       <!-- Desktop Sidebar Aside Component -->
       <aside class="hidden md:flex flex-col w-64 bg-white border-r border-gray-100 shrink-0 py-6 space-y-6 sticky top-[73px] h-[calc(100vh-73px)] overflow-y-auto">

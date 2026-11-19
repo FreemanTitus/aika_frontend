@@ -9,6 +9,7 @@ const approvalStatusPayload = ref<any>(null)
 const riderAllocationPayload = ref<any>(null)
 const orderCompletedPayload = ref<any>(null)
 const broadcastPayload = ref<any>(null)
+const subscriptionReminderPayload = ref<any>(null)
 const isAudioUnlocked = ref(false)
 
 // Initialize the notification sound locally from the public folder
@@ -141,6 +142,8 @@ export const useVendorSocket = (vendorId: string | null) => {
           case "order_completed":
             orderCompletedPayload.value = data
             break
+          case "subscription_reminder":
+            subscriptionReminderPayload.value = data
           case "system_broadcast_message":
             broadcastPayload.value = data.message || data
             break
@@ -256,6 +259,7 @@ export const useVendorSocket = (vendorId: string | null) => {
     riderAllocationPayload,
     orderCompletedPayload,
     broadcastPayload,
+    subscriptionReminderPayload,
     isAudioUnlocked,
     forceReconnet: initWebSocket,
     forceDisconnect: closeWebSocketGracefully

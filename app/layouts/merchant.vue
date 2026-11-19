@@ -36,7 +36,7 @@ const allNotificationHistory = ref<any[]>([])
 const unreadCount = computed(() => allNotificationHistory.value.filter(n => !n.read).length)
 const processingOrdersMap = ref<Record<string, boolean>>({})
 
-const { latestOrderPayload, riderAllocationPayload, orderCompletedPayload, broadcastPayload, isConnected } = useVendorSocket(profileId.value || null)
+const { latestOrderPayload, approvalStatusPayload, riderAllocationPayload, subscriptionReminderPayload, orderCompletedPayload, broadcastPayload, isConnected } = useVendorSocket(profileId.value || null)
 
 // Helper to record notification into persistent history tray & active toast queue
 const registerNotification = (type: string, message: string, extraData = {}) => {
@@ -93,6 +93,73 @@ watch(broadcastPayload, (broadcast) => {
   registerNotification(
     'broadcast',
     `<b>${title}</b><br/><span class="text-gray-600 font-normal">${text}</span>`
+  )
+})
+
+// Watcher 5: Catch subscription expiration and renewal reminders
+watch(subscriptionReminderPayload, (reminder) => {
+  if (!reminder) return
+
+  const escapeHtml = (str: string) =>
+    String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+
+  const title = escapeHtml(reminder.title || 'Subscription Reminder')
+  const text = escapeHtml(reminder.message || 'Your vendor subscription requires attention.')
+  const isExpired = reminder.reminder_type === 'expired'
+
+  registerNotification(
+    'subscription',
+    `<b>${title}</b><br/><span class="text-gray-600 font-normal">${text}</span>`,
+    {
+      reminder_type: reminder.reminder_type,
+      url: reminder.url || '/vendor/subscription',
+      isExpired,
+    }
+  )
+})
+
+// Watcher 6: Catch vendor profile / store approval status updates
+watch(approvalStatusPayload, (approval) => {
+  if (!approval) return
+
+  const escapeHtml = (str: string) =>
+    String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+
+  const rawStatus = String(approval.status || approval.approval_status || '').toLowerCase()
+  const isApproved = rawStatus === 'approved' || rawStatus === 'active' || approval.is_approved === true
+  const isRejected = rawStatus === 'rejected' || rawStatus === 'declined' || rawStatus === 'suspended'
+
+  const title = escapeHtml(
+    approval.title ||
+      (isApproved
+        ? 'Store Account Approved'
+        : isRejected
+          ? 'Store Verification Update'
+          : 'Account Status Updated')
+  )
+  const text = escapeHtml(
+    approval.message ||
+      approval.reason ||
+      (isApproved
+        ? 'Your merchant profile is now approved and live on Aika.'
+        : 'Your merchant profile approval status has changed.')
+  )
+
+  registerNotification(
+    'approval',
+    `<b>${title}</b><br/><span class="text-gray-600 font-normal">${text}</span>`,
+    {
+      status: rawStatus,
+      isApproved,
+      isRejected,
+      url: approval.url || '/vendor/profile',
+    }
   )
 })
 
@@ -430,6 +497,77 @@ const handleLogout = async (): Promise<void> => {
             <div class="flex-1 min-w-0">
               <span class="text-[9px] font-black tracking-wider uppercase text-indigo-600 block">Platform Announcement</span>
               <p class="text-xs text-gray-800 font-semibold mt-0.5 leading-relaxed" v-html="safeNotificationHtml(notif.message)"></p>
+            </div>
+            <button @click="removeNotification(notif.id)" class="text-gray-300 hover:text-gray-500 bg-transparent border-0 cursor-pointer outline-none self-start">
+              <X class="w-4 h-4" />
+            </button>
+          </div>
+
+          <!-- Subscription Reminder Toast Template -->
+          <div v-else-if="notif.type === 'subscription'" class="p-4 flex items-start space-x-3">
+            <div
+              :class="notif.isExpired ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-600'"
+              class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+            >
+              <Bell class="w-4 h-4" />
+            </div>
+            <div class="flex-1 min-w-0 space-y-2">
+              <span
+                :class="notif.isExpired ? 'text-rose-600' : 'text-amber-600'"
+                class="text-[9px] font-black tracking-wider uppercase block"
+              >
+                {{ notif.isExpired ? 'Subscription Expired' : 'Subscription Alert' }}
+              </span>
+              <p class="text-xs text-gray-800 font-semibold leading-relaxed" v-html="safeNotificationHtml(notif.message)"></p>
+              <NuxtLink
+                :to="notif.url || '/vendor/subscription'"
+                @click="removeNotification(notif.id)"
+                class="inline-block bg-[#0A1128] hover:bg-[#84cc16] text-white hover:text-[#0A1128] text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg transition"
+              >
+                Renew / Manage Plan
+              </NuxtLink>
+            </div>
+            <button @click="removeNotification(notif.id)" class="text-gray-300 hover:text-gray-500 bg-transparent border-0 cursor-pointer outline-none self-start">
+              <X class="w-4 h-4" />
+            </button>
+          </div>
+
+          <!-- Vendor Approval Status Toast Template -->
+          <div v-else-if="notif.type === 'approval'" class="p-4 flex items-start space-x-3">
+            <div
+              :class="
+                notif.isApproved
+                  ? 'bg-emerald-50 text-emerald-600'
+                  : notif.isRejected
+                    ? 'bg-rose-50 text-rose-600'
+                    : 'bg-amber-50 text-amber-600'
+              "
+              class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+            >
+              <CheckCircle class="w-4 h-4" />
+            </div>
+            <div class="flex-1 min-w-0 space-y-2">
+              <span
+                :class="
+                  notif.isApproved
+                    ? 'text-emerald-600'
+                    : notif.isRejected
+                      ? 'text-rose-600'
+                      : 'text-amber-600'
+                "
+                class="text-[9px] font-black tracking-wider uppercase block"
+              >
+                {{ notif.isApproved ? 'Account Approved' : notif.isRejected ? 'Verification Notice' : 'Approval Update' }}
+              </span>
+              <p class="text-xs text-gray-800 font-semibold leading-relaxed" v-html="safeNotificationHtml(notif.message)"></p>
+              <NuxtLink
+                v-if="notif.url"
+                :to="notif.url"
+                @click="removeNotification(notif.id)"
+                class="inline-block bg-[#0A1128] hover:bg-[#84cc16] text-white hover:text-[#0A1128] text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg transition"
+              >
+                View Details
+              </NuxtLink>
             </div>
             <button @click="removeNotification(notif.id)" class="text-gray-300 hover:text-gray-500 bg-transparent border-0 cursor-pointer outline-none self-start">
               <X class="w-4 h-4" />
