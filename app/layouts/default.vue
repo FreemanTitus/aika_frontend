@@ -1,6 +1,6 @@
 <!-- layouts/default.vue -->
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { CheckCircle2, AlertCircle } from '@lucide/vue'
 
 const config = useRuntimeConfig()
@@ -34,18 +34,28 @@ const showFeedback = (title: string, message: string, type: 'success' | 'error' 
   feedbackModal.value = { isOpen: true, title, message, type }
 }
 
-// Add a cookie or state watcher for the user's role
-const userRole = useCookie('user_role') // or parse it from an auth store / user cookie
+// Role-based dashboard routing
+const userRole = useCookie('user_role')
 
 const dashboardRoute = computed(() => {
-  if (userRole.value === 'individual') {
-    return '/customer/dashboard'
-  } else if (userRole.value === 'vendor') {
-    return '/merchant/dashboard'
-  } else if (userRole.value === 'rider') {
+  const role = String(userRole.value || '').toLowerCase().trim()
+
+  if (role === 'admin' || role === 'superuser') {
+    return '/admin/dashboard'
+  }
+  if (role === 'staff') {
+    return '/staff/dashboard'
+  }
+  if (role === 'agent') {
+    return '/agent/dashboard'
+  }
+  if (role === 'rider') {
     return '/rider/dashboard'
   }
-  return '/dashboard' // Default fallback
+  if (role === 'individual' || role === 'customer') {
+    return '/customer/dashboard'
+  }
+  return '/merchant/dashboard'
 })
 
 const handleNewsletterSubscribe = async () => {
@@ -96,12 +106,20 @@ const currentYear = new Date().getFullYear()
           
           <div class="hidden md:block">
             <NuxtLink 
+              v-if="isAuthenticated"
+              :to="dashboardRoute" 
+              class="bg-[#0A1128] text-[#D4F53C] px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-[#D4F53C] hover:text-[#0A1128] transition shadow-lg shadow-[#0A1128]/10 cursor-pointer"
+            >
+              Dashboard
+            </NuxtLink>
+            <NuxtLink 
+              v-else
               to="/auth/login" 
               class="bg-[#0A1128] text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-[#D4F53C] hover:text-[#0A1128] transition shadow-lg shadow-[#0A1128]/10 cursor-pointer"
             >
               Login
             </NuxtLink>
-        </div>
+          </div>
 
           <button 
             @click="toggleMenu" 
@@ -147,6 +165,15 @@ const currentYear = new Date().getFullYear()
 
               <div class="pt-4 border-t border-gray-100/80 space-y-3">
                   <NuxtLink 
+                    v-if="isAuthenticated"
+                    @click="closeMenu" 
+                    :to="dashboardRoute" 
+                    class="block text-center bg-[#0A1128] text-[#D4F53C] py-3.5 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-[#D4F53C] hover:text-[#0A1128] transition shadow-lg shadow-[#0A1128]/10"
+                  >
+                      Dashboard
+                  </NuxtLink>
+                  <NuxtLink 
+                    v-else
                     @click="closeMenu" 
                     to="/auth/login" 
                     class="block text-center bg-[#0A1128] text-white py-3.5 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-[#D4F53C] hover:text-[#0A1128] transition shadow-lg shadow-[#0A1128]/10"

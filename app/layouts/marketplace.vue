@@ -54,6 +54,27 @@ onMounted(() => {
     fetchServerCart()
   }
 })
+
+const dashboardRoute = computed(() => {
+  const role = String(userRole.value || '').toLowerCase().trim()
+
+  if (role === 'admin' || role === 'superuser') {
+    return '/admin/dashboard' // or '/admin' if your admin index is the dashboard
+  }
+  if (role === 'staff') {
+    return '/staff/dashboard'
+  }
+  if (role === 'agent') {
+    return '/agent/dashboard'
+  }
+  if (role === 'rider') {
+    return '/rider/dashboard'
+  }
+  if (role === 'individual' || role === 'customer') {
+    return '/customer/dashboard'
+  }
+  return '/merchant/dashboard'
+})
 </script>
 
 <template>
@@ -81,15 +102,17 @@ onMounted(() => {
                 Marketplace
               </NuxtLink>
 
-              <NuxtLink 
-                v-if="isAuthenticated" 
-                :to="userRole === 'individual' ? '/customer/dashboard' : '/merchant/dashboard'"
-                :class="[
-                  'hover:text-[#84cc16] transition relative',
-                  isDashboardActive ? 'text-[#84cc16] after:content-[\'\'] after:absolute after:left-0 after:bottom-[-4px] after:w-full after:h-[2px] after:bg-[#84cc16]' : ''
-                ]"
-              >
-                Dashboard
+              <NuxtLink
+                  v-if="isAuthenticated"
+                  :to="dashboardRoute"
+                  :class="[
+                    'hover:text-[#84cc16] transition relative',
+                    isDashboardActive
+                      ? 'text-[#84cc16] after:content-[\'\'] after:absolute after:left-0 after:bottom-[-4px] after:w-full after:h-[2px] after:bg-[#84cc16]'
+                      : ''
+                  ]"
+                >
+                  Dashboard
               </NuxtLink>
           </nav>
           
@@ -178,12 +201,17 @@ onMounted(() => {
                     Marketplace
                 </NuxtLink>
 
-                <NuxtLink 
-                    v-if="isAuthenticated" 
-                    :to="userRole === 'individual' ? '/customer/dashboard' : '/merchant/dashboard'"
-                    :class="['hover:text-[#84cc16] py-1 transition text-lg font-black', isDashboardActive ? 'text-[#84cc16]' : 'text-[#0A1128]']"
+                <NuxtLink
+                  v-if="isAuthenticated"
+                  :to="dashboardRoute"
+                  :class="[
+                    'hover:text-[#84cc16] transition relative',
+                    isDashboardActive
+                      ? 'text-[#84cc16] after:content-[\'\'] after:absolute after:left-0 after:bottom-[-4px] after:w-full after:h-[2px] after:bg-[#84cc16]'
+                      : ''
+                  ]"
                 >
-                    Dashboard
+                  Dashboard
                 </NuxtLink>
               </nav>
           </div>
