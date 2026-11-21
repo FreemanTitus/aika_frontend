@@ -3,32 +3,32 @@ import { ArrowRight, Zap, ShieldCheck, MapPin } from '@lucide/vue'
 
 const ecommerceCategories = [
   {
-    title: 'Supermarket & Groceries',
-    subtitle: 'Fresh produce, provisions & drinks',
-    badge: '30 Min Delivery',
-    image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=800&auto=format&fit=crop',
-    query: 'groceries'
-  },
-  {
-    title: 'Gadgets & Accessories',
+    title: 'Gadgets & Tech',
     subtitle: 'Chargers, earbuds, powerbanks & phones',
     badge: 'Verified Stores',
     image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=800&auto=format&fit=crop',
     query: 'gadgets'
   },
   {
-    title: 'Pharmacy & Wellness',
-    subtitle: 'Daily essentials, skincare & health care',
-    badge: 'Discreet & Fast',
-    image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=800&auto=format&fit=crop',
-    query: 'pharmacy'
-  },
-  {
-    title: 'Fashion & Lifestyle',
-    subtitle: 'Sneakers, perfumes, watches & bags',
+    title: 'Clothing & Apparel',
+    subtitle: 'Outfits, streetwear, kicks & everyday wear',
     badge: 'Trending Drops',
     image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=800&auto=format&fit=crop',
-    query: 'fashion'
+    query: 'apparel'
+  },
+  {
+    title: 'Home Appliances',
+    subtitle: 'Kitchen gear, fans, blenders & home essentials',
+    badge: '30 Min Delivery',
+    image: 'https://images.unsplash.com/photo-1556911220-bff31c812dba?q=80&w=800&auto=format&fit=crop',
+    query: 'appliances'
+  },
+  {
+    title: 'Beauty & Cosmetics',
+    subtitle: 'Skincare, fragrances, makeup & self-care',
+    badge: 'Top Picks',
+    image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?q=80&w=800&auto=format&fit=crop',
+    query: 'beauty'
   }
 ]
 </script>
@@ -45,7 +45,7 @@ const ecommerceCategories = [
             Shop Local Stores &amp; <span class="text-[#D4F53C]">E-Commerce</span>
           </h2>
           <p class="text-gray-300 text-sm font-medium">
-            Order groceries, gadgets, pharmacy items, and fashion from trusted neighborhood stores—delivered in minutes.
+            Order gadgets, apparel, home appliances, and beauty essentials from trusted neighborhood stores—delivered fast.
           </p>
         </div>
         <NuxtLink
@@ -99,8 +99,8 @@ const ecommerceCategories = [
             <ShieldCheck class="w-5 h-5" />
           </div>
           <div>
-            <h4 class="text-sm font-black text-white">Protected Escrow Checkout</h4>
-            <p class="text-xs text-gray-400">Safe payments released upon delivery.</p>
+            <h4 class="text-sm font-black text-white">Protected Checkout</h4>
+            <p class="text-xs text-gray-400">Safe payments with clear order confirmation.</p>
           </div>
         </div>
 
@@ -110,7 +110,7 @@ const ecommerceCategories = [
           </div>
           <div>
             <h4 class="text-sm font-black text-white">Live Doorstep Tracking</h4>
-            <p class="text-xs text-gray-400">Follow your food or parcel in real time.</p>
+            <p class="text-xs text-gray-400">Follow your order or parcel in real time.</p>
           </div>
         </div>
       </div>

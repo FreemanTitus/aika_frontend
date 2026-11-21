@@ -1,7 +1,6 @@
 <!-- pages/marketplace/index.vue -->
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-
+import { ref, computed, onMounted, watch } from 'vue'
 import {
   Utensils,
   Shirt,
@@ -24,16 +23,26 @@ import {
 } from '@lucide/vue'
 import MarketplaceVendorCard from '~/components/MarketplaceVendorCard.vue'
 
-
 definePageMeta({
   layout: 'marketplace'
 })
 
 const config = useRuntimeConfig()
 const apiBase = config.public.apiBase
+const route = useRoute()
 
 type MarketTab = 'restaurants' | 'ecommerce' | 'others'
+type EcommerceCategoryKey = 'gadgets' | 'apparel' | 'appliances' | 'beauty'
+
+const ECOMMERCE_CATEGORY_LABELS: Record<EcommerceCategoryKey, string> = {
+  gadgets: 'Gadgets & Tech',
+  apparel: 'Clothing & Apparel',
+  appliances: 'Home Appliances',
+  beauty: 'Beauty & Cosmetics'
+}
+
 const activeTab = ref<MarketTab>('restaurants')
+const selectedEcommerceCategory = ref<EcommerceCategoryKey | null>(null)
 const searchQuery = ref<string>('')
 const selectedLocationId = useCookie('customer_location_id')
 
@@ -41,8 +50,36 @@ const selectedLocationId = useCookie('customer_location_id')
 const openNowOnly = ref<boolean>(false)
 const featuredOnly = ref<boolean>(false)
 
+const applyRouteQuery = () => {
+  const categoryParam = String(route.query.category || '').toLowerCase().trim()
+  const qParam = String(route.query.q || '').trim()
+  const locParam = String(route.query.location || '').trim()
+
+  selectedEcommerceCategory.value = null
+
+  if (categoryParam in ECOMMERCE_CATEGORY_LABELS) {
+    activeTab.value = 'ecommerce'
+    selectedEcommerceCategory.value = categoryParam as EcommerceCategoryKey
+  } else if (categoryParam === 'ecommerce' || categoryParam === 'e_commerce') {
+    activeTab.value = 'ecommerce'
+  } else if (categoryParam === 'restaurants' || categoryParam === 'food') {
+    activeTab.value = 'restaurants'
+  } else if (categoryParam === 'others' || categoryParam === 'services' || categoryParam === 'other') {
+    activeTab.value = 'others'
+  }
+
+  if (qParam) {
+    searchQuery.value = qParam
+  } else if (locParam && !searchQuery.value) {
+    searchQuery.value = locParam
+  }
+}
+
 const switchTab = (tab: MarketTab): void => {
   activeTab.value = tab
+  if (tab !== 'ecommerce') {
+    selectedEcommerceCategory.value = null
+  }
 }
 
 // Reactive states for data, loading, and error handling
@@ -50,7 +87,6 @@ const response = ref<any>(null)
 const pending = ref<boolean>(true)
 const error = ref<boolean>(false)
 
-// Fetch function that triggers reliably on every client-side route transition
 const fetchVendors = async () => {
   pending.value = true
   error.value = false
@@ -58,15 +94,20 @@ const fetchVendors = async () => {
   const authToken = useCookie('auth_token')
 
   try {
-    // Build query parameters dynamically if location ID is selected
     const queryParams: Record<string, any> = {}
     if (selectedLocationId.value) {
       queryParams.customer_location_id = selectedLocationId.value
     }
+    if (route.query.location) {
+      queryParams.location = String(route.query.location).trim()
+    }
+    if (selectedEcommerceCategory.value) {
+      queryParams.category = selectedEcommerceCategory.value
+    }
 
     const res: any = await $fetch(`${apiBase}/api/v1/marketplace/vendors`, {
       method: 'GET',
-      params: queryParams, // <--- Passes customer_location_id to backend
+      params: queryParams,
       headers: {
         'ngrok-skip-browser-warning': 'true',
         ...(authToken.value ? { Authorization: `Bearer ${authToken.value}` } : {})
@@ -74,14 +115,28 @@ const fetchVendors = async () => {
     })
     response.value = res
   } catch (err) {
-    console.error("Telemetry sync error:", err)
+    console.error('Telemetry sync error:', err)
     error.value = true
   } finally {
     pending.value = false
   }
 }
-// Trigger fetch immediately when component mounts on route change
+
+watch(
+  () => route.query,
+  () => {
+    applyRouteQuery()
+    fetchVendors()
+  },
+  { immediate: true }
+)
+
+watch(selectedLocationId, () => {
+  fetchVendors()
+})
+
 onMounted(() => {
+  applyRouteQuery()
   fetchVendors()
 })
 
@@ -102,6 +157,42 @@ const tabCounts = computed(() => ({
   others: vendorsData.value.other_businesses.length
 }))
 
+const matchesEcommerceCategory = (shop: any, cat: EcommerceCategoryKey): boolean => {
+  const direct = String(
+    shop.ecommerce_sub_category ||
+      shop.ecommerce_category ||
+      shop.category ||
+      shop.business_category ||
+      shop.storefront_category ||
+      ''
+  )
+  .trim()
+  .toLowerCase()
+
+  if (direct === cat || direct.includes(cat)) {
+    return true
+  }
+
+  const list =
+    shop.ecommerce_categories ||
+    shop.categories ||
+    shop.subcategories ||
+    shop.product_categories ||
+    shop.available_categories ||
+    []
+
+  if (Array.isArray(list) && list.length > 0) {
+    return list.some((item: any) =>
+      String(typeof item === 'string' ? item : item?.slug || item?.value || item?.key || item?.name || '')
+        .toLowerCase()
+        .includes(cat)
+    )
+  }
+
+  // Strict match: if no matching category metadata is present on the vendor object, do not match
+  return false
+}
+
 // Client Side Live Filtering Engine
 const filteredVendors = computed(() => {
   if (!response.value) return []
@@ -113,6 +204,12 @@ const filteredVendors = computed(() => {
 
   let result = targetCollection
 
+  if (activeTab.value === 'ecommerce' && selectedEcommerceCategory.value) {
+    result = result.filter((shop: any) =>
+      matchesEcommerceCategory(shop, selectedEcommerceCategory.value!)
+    )
+  }
+
   if (openNowOnly.value) result = result.filter((shop: any) => shop.is_currently_open)
   if (featuredOnly.value) result = result.filter((shop: any) => shop.is_featured_recommendation)
 
@@ -121,16 +218,24 @@ const filteredVendors = computed(() => {
   const query = searchQuery.value.toLowerCase().trim()
   return result.filter((shop: any) =>
     shop.company_name?.toLowerCase().includes(query) ||
-    shop.default_pickup_address?.toLowerCase().includes(query)
+    shop.default_pickup_address?.toLowerCase().includes(query) ||
+    shop.business_type?.toLowerCase().includes(query) ||
+    shop.ecommerce_category?.toLowerCase().includes(query) ||
+    shop.category?.toLowerCase().includes(query)
   )
 })
 
 const hasActiveFilters = computed(
-  () => !!searchQuery.value.trim() || openNowOnly.value || featuredOnly.value
+  () =>
+    !!searchQuery.value.trim() ||
+    !!selectedEcommerceCategory.value ||
+    openNowOnly.value ||
+    featuredOnly.value
 )
 
 const clearFilters = (): void => {
   searchQuery.value = ''
+  selectedEcommerceCategory.value = null
   openNowOnly.value = false
   featuredOnly.value = false
 }
@@ -157,10 +262,15 @@ const hero = computed(() => {
     }
   }
   if (activeTab.value === 'ecommerce') {
+    const activeCatLabel = selectedEcommerceCategory.value
+      ? ECOMMERCE_CATEGORY_LABELS[selectedEcommerceCategory.value]
+      : null
     return {
       badgeIcon: ShoppingBag,
-      badge: 'Retail storefronts online',
-      title: 'Shop top retail brands, straight from store to door.',
+      badge: activeCatLabel ? `E-Commerce · ${activeCatLabel}` : 'Retail storefronts online',
+      title: activeCatLabel
+        ? `Shop ${activeCatLabel.toLowerCase()} from local stores.`
+        : 'Shop top retail brands, straight from store to door.',
       pills: [
         { icon: PackageCheck, text: 'Direct merchant fulfillment' },
         { icon: ShieldCheck, text: 'Verified sellers' },
@@ -266,6 +376,21 @@ const hero = computed(() => {
 
         <!-- Quick filters -->
         <div class="flex flex-wrap items-center gap-2">
+          <span
+            v-if="activeTab === 'ecommerce' && selectedEcommerceCategory"
+            class="inline-flex items-center gap-1.5 rounded-full bg-[#D4F53C] px-3 py-1.5 text-[11px] font-extrabold text-[#0A1128]"
+          >
+            {{ ECOMMERCE_CATEGORY_LABELS[selectedEcommerceCategory] }}
+            <button
+              type="button"
+              @click="selectedEcommerceCategory = null"
+              aria-label="Clear category filter"
+              class="inline-flex h-4 w-4 cursor-pointer items-center justify-center rounded-full border-0 bg-[#0A1128]/15 text-[#0A1128] hover:bg-[#0A1128]/25"
+            >
+              <X class="h-3 w-3" />
+            </button>
+          </span>
+
           <button
             @click="openNowOnly = !openNowOnly"
             :aria-pressed="openNowOnly"
