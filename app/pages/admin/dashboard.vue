@@ -1,4 +1,4 @@
-<!-- pages/admin/index.vue -->
+<!-- pages/admin/dashboard.vue -->
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue'
 import { Loader2, RefreshCw, ShoppingBag, Users, Store, Bike, TrendingUp, BellRing, CheckCircle2 } from '@lucide/vue'
@@ -15,8 +15,16 @@ const config = useRuntimeConfig()
 const apiBase = config.public.apiBase
 
 const dashboardStats = ref<any>(null)
-const chartTrends = ref<any>({ days_labels: [], days_revenue: [], days_volumes: [] })
+const chartTrends = ref<any>({
+  days_labels: [],
+  days_revenue: [],
+  days_volumes: [],
+  months_labels: [],
+  months_revenue: [],
+  months_volumes: []
+})
 const isLoading = ref(true)
+const isRefreshing = ref(false)
 const selectedTimeframe = ref<'days' | 'months'>('days')
 const notification = ref<{ message: string; type: 'success' | 'error' | 'alert' } | null>(null)
 
@@ -30,24 +38,41 @@ const showPopup = (message: string, type: 'success' | 'error' | 'alert' = 'succe
   }, 5000)
 }
 
-const fetchDashboardStats = async () => {
-  isLoading.value = true
+const fetchDashboardStats = async (manual = false) => {
+  if (manual) {
+    isRefreshing.value = true
+  } else if (!dashboardStats.value) {
+    isLoading.value = true
+  }
+
   try {
     const res: any = await $fetch(`${apiBase}/api/v1/admin/dashboard-stats`, {
       method: 'GET',
-      headers: { 
+      headers: {
         'ngrok-skip-browser-warning': 'true',
         ...(authToken.value ? { Authorization: `Bearer ${authToken.value}` } : {})
       }
     })
-    
+
     dashboardStats.value = res?.metrics || res
-    chartTrends.value = res?.chart_trends || { days_labels: [], days_revenue: [], days_volumes: [] }
+    chartTrends.value = {
+      days_labels: res?.chart_trends?.days_labels || [],
+      days_revenue: res?.chart_trends?.days_revenue || [],
+      days_volumes: res?.chart_trends?.days_volumes || [],
+      months_labels: res?.chart_trends?.months_labels || [],
+      months_revenue: res?.chart_trends?.months_revenue || [],
+      months_volumes: res?.chart_trends?.months_volumes || []
+    }
+
+    if (manual) {
+      showPopup('Dashboard metrics refreshed.', 'success')
+    }
   } catch (err: any) {
-    console.error("Failed to fetch admin stats", err)
-    showPopup(err?.data?.detail || "Could not load system analytics.", 'error')
+    console.error('Failed to fetch admin stats', err)
+    showPopup(err?.data?.detail || 'Could not load system analytics.', 'error')
   } finally {
     isLoading.value = false
+    isRefreshing.value = false
   }
 }
 
@@ -56,16 +81,28 @@ const chartData = computed(() => {
   const isDays = selectedTimeframe.value === 'days'
   const trends = chartTrends.value || {}
 
+  const defaultDayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const defaultMonthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const defaultZeros = isDays ? [0, 0, 0, 0, 0, 0, 0] : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+  const labels = isDays
+    ? (trends.days_labels?.length ? trends.days_labels : defaultDayLabels)
+    : (trends.months_labels?.length ? trends.months_labels : defaultMonthLabels)
+
+  const revenueSeries = isDays
+    ? (trends.days_revenue?.length ? trends.days_revenue : defaultZeros)
+    : (trends.months_revenue?.length ? trends.months_revenue : defaultZeros)
+
+  const volumeSeries = isDays
+    ? (trends.days_volumes?.length ? trends.days_volumes : defaultZeros)
+    : (trends.months_volumes?.length ? trends.months_volumes : defaultZeros)
+
   return {
-    labels: isDays 
-      ? (trends.days_labels?.length ? trends.days_labels : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) 
-      : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+    labels,
     datasets: [
       {
         label: 'Revenue (₦)',
-        data: isDays 
-          ? (trends.days_revenue?.length ? trends.days_revenue : [0, 0, 0, 0, 0, 0, 0]) 
-          : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        data: revenueSeries,
         borderColor: '#84cc16',
         backgroundColor: 'rgba(132, 204, 22, 0.08)',
         fill: true,
@@ -75,9 +112,7 @@ const chartData = computed(() => {
       },
       {
         label: 'Engagement / Orders',
-        data: isDays 
-          ? (trends.days_volumes?.length ? trends.days_volumes : [0, 0, 0, 0, 0, 0, 0]) 
-          : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        data: volumeSeries,
         borderColor: '#0A1128',
         backgroundColor: 'rgba(10, 17, 40, 0.03)',
         fill: true,
@@ -116,19 +151,19 @@ const chartOptions = {
 watch(newOrderAlertPayload, (payload) => {
   if (payload) {
     showPopup(payload.message || `New order received (#${payload.order_id})!`, 'alert')
-    fetchDashboardStats()
+    fetchDashboardStats(false)
   }
 })
 
 watch(orderCompletedPayload, (payload) => {
   if (payload) {
     showPopup(payload.message || `Order successfully completed (#${payload.order_reference})!`, 'success')
-    fetchDashboardStats()
+    fetchDashboardStats(false)
   }
 })
 
 onMounted(() => {
-  fetchDashboardStats()
+  fetchDashboardStats(false)
 })
 </script>
 
@@ -139,10 +174,10 @@ onMounted(() => {
     </div>
 
     <div v-else class="space-y-6">
-      
+
       <!-- Live Real-Time Popup Notification Banner -->
       <transition enter-active-class="transform transition duration-300 ease-out" enter-from-class="-translate-y-2 opacity-0" enter-to-class="translate-y-0 opacity-100" leave-active-class="transition duration-200 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
-        <div v-if="notification" 
+        <div v-if="notification"
              :class="{
                'bg-[#84cc16] text-slate-950 border border-lime-400': notification.type === 'success',
                'bg-rose-500 text-white border border-rose-600': notification.type === 'error',
@@ -160,7 +195,7 @@ onMounted(() => {
 
       <!-- STATS GRID CARDS -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
+
         <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition space-y-3">
           <div class="flex items-center justify-between">
             <div class="bg-indigo-50 p-2.5 rounded-xl text-indigo-600"><ShoppingBag class="w-4 h-4" /></div>
@@ -217,22 +252,37 @@ onMounted(() => {
             <p class="text-[11px] text-gray-400 mt-0.5 font-medium">Visualizing trends and platform velocity over periods</p>
           </div>
 
-          <!-- Timeframe Selector Tabs -->
-          <div class="bg-gray-100/80 p-1 rounded-xl border border-gray-200/60 flex items-center gap-1">
-            <button 
-              @click="selectedTimeframe = 'days'"
-              :class="selectedTimeframe === 'days' ? 'bg-[#0A1128] text-white shadow-sm' : 'text-gray-500 hover:text-[#0A1128]'"
-              class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition cursor-pointer border-0 outline-none"
+          <!-- Refresh + Timeframe Selector Tabs -->
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              @click="fetchDashboardStats(true)"
+              :disabled="isRefreshing"
+              class="p-2 rounded-xl bg-gray-100/80 hover:bg-gray-200/70 text-[#0A1128] transition cursor-pointer border border-gray-200/60 outline-none disabled:opacity-50"
+              title="Refresh analytics"
+              aria-label="Refresh analytics"
             >
-              Days
+              <RefreshCw :class="{ 'animate-spin': isRefreshing }" class="w-3.5 h-3.5" />
             </button>
-            <button 
-              @click="selectedTimeframe = 'months'"
-              :class="selectedTimeframe === 'months' ? 'bg-[#0A1128] text-white shadow-sm' : 'text-gray-500 hover:text-[#0A1128]'"
-              class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition cursor-pointer border-0 outline-none"
-            >
-              Months
-            </button>
+
+            <div class="bg-gray-100/80 p-1 rounded-xl border border-gray-200/60 flex items-center gap-1">
+              <button
+                type="button"
+                @click="selectedTimeframe = 'days'"
+                :class="selectedTimeframe === 'days' ? 'bg-[#0A1128] text-white shadow-sm' : 'text-gray-500 hover:text-[#0A1128]'"
+                class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition cursor-pointer border-0 outline-none"
+              >
+                Days
+              </button>
+              <button
+                type="button"
+                @click="selectedTimeframe = 'months'"
+                :class="selectedTimeframe === 'months' ? 'bg-[#0A1128] text-white shadow-sm' : 'text-gray-500 hover:text-[#0A1128]'"
+                class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition cursor-pointer border-0 outline-none"
+              >
+                Months
+              </button>
+            </div>
           </div>
         </div>
 
@@ -244,7 +294,7 @@ onMounted(() => {
 
       <!-- OPERATIONAL METRICS ROW -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        
+
         <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between space-y-4">
           <div>
             <p class="text-[10px] font-black uppercase tracking-wider text-gray-400">Pending Order Dispatches</p>

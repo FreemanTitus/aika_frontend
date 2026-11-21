@@ -10,6 +10,7 @@ const route = useRoute()
 
 const authToken = useCookie('auth_token')
 const userRole = useCookie('user_role')
+
 const profileId = useCookie('profile_id')
 
 const isAuthenticated = computed(() => !!authToken.value)
@@ -55,11 +56,22 @@ onMounted(() => {
   }
 })
 
+const userRoleLogin = useCookie<string | null>('user_role', {
+  default: () => null
+})
+
 const dashboardRoute = computed(() => {
-  const role = String(userRole.value || '').toLowerCase().trim()
+  const raw = String(userRoleLogin.value || '').trim().toLowerCase()
+  const role = (() => {
+    try {
+      return decodeURIComponent(raw).replace(/^"+|"+$/g, '').trim()
+    } catch {
+      return raw.replace(/^"+|"+$/g, '').trim()
+    }
+  })()
 
   if (role === 'admin' || role === 'superuser') {
-    return '/admin/dashboard' // or '/admin' if your admin index is the dashboard
+    return '/admin/dashboard'
   }
   if (role === 'staff') {
     return '/staff/dashboard'

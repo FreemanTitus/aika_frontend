@@ -35,10 +35,19 @@ const showFeedback = (title: string, message: string, type: 'success' | 'error' 
 }
 
 // Role-based dashboard routing
-const userRole = useCookie('user_role')
+const userRoleLogin = useCookie<string | null>('user_role', {
+  default: () => null
+})
 
 const dashboardRoute = computed(() => {
-  const role = String(userRole.value || '').toLowerCase().trim()
+  const raw = String(userRoleLogin.value || '').trim().toLowerCase()
+  const role = (() => {
+    try {
+      return decodeURIComponent(raw).replace(/^"+|"+$/g, '').trim()
+    } catch {
+      return raw.replace(/^"+|"+$/g, '').trim()
+    }
+  })()
 
   if (role === 'admin' || role === 'superuser') {
     return '/admin/dashboard'
