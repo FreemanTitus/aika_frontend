@@ -205,17 +205,17 @@ onBeforeUnmount(() => {
 <template>
   <div class="selection:bg-[#0A1128] selection:text-[#D4F53C] bg-white text-[#0A1128]">
     <!-- =========================================================================
-         1. GLOVO-INSPIRED HERO WITH LEMON GREEN -> SECOND NAVY GRADIENT & LEFT IMAGE
+        HERO WITH LEMON GREEN -> SECOND NAVY GRADIENT & LEFT IMAGE
          ========================================================================= -->
-    <section class="relative bg-gradient-to-br from-[#D4F53C] via-[#9cc936] to-[#16224a] pt-10 pb-20 md:pt-14 md:pb-28 overflow-hidden">
+    <section class="relative bg-gradient-to-br from-[#D4F53C] via-[#9cc936] to-[#16224a] pt-10 pb-20 md:pt-14 md:pb-24 overflow-hidden">
       <div class="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-white/15 blur-2xl pointer-events-none"></div>
       <div class="absolute bottom-0 -left-20 w-80 h-80 rounded-full bg-[#16224a]/25 blur-xl pointer-events-none"></div>
 
-      <div class="relative z-10 max-w-6xl mx-auto px-5 sm:px-6">
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
+      <div class="relative z-10 max-w-6xl mx-auto px-5 sm:px-6 lg:px-8 pb-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           <!-- Left Non-Clickable, Borderless, Seamlessly Blended Animated Showcase -->
           <div class="lg:col-span-5 flex flex-col items-center select-none pointer-events-none">
-            <div class="relative w-full max-w-[380px] aspect-square bg-transparent border-0">
+            <div class="relative w-full max-w-[340px] sm:max-w-[380px] lg:max-w-[420px] h-[340px] sm:h-[370px] lg:h-[390px] bg-transparent border-0">
               <div
                 v-for="(slide, idx) in leftHeroSlides"
                 :key="slide.label"
@@ -229,9 +229,9 @@ onBeforeUnmount(() => {
                 <img
                   :src="slide.image"
                   :alt="slide.label"
-                  class="w-full h-full object-contain animate-hero-float bg-transparent mix-blend-multiply hero-edge-fade"
+                  class="w-full h-[250px] sm:h-[275px] lg:h-[295px] object-contain animate-hero-float bg-transparent mix-blend-multiply hero-edge-fade"
                 />
-                <div class="mt-2">
+                <div class="mt-3">
                   <span class="bg-[#0A1128] text-[#D4F53C] text-[11px] font-black uppercase tracking-wider px-4 py-1.5 rounded-full inline-block shadow-sm">
                     {{ slide.label }}
                   </span>
@@ -240,7 +240,7 @@ onBeforeUnmount(() => {
             </div>
 
             <!-- Slide Indicator Pills -->
-            <div class="mt-6 flex items-center gap-2">
+            <div class="mt-3 flex items-center gap-2">
               <span
                 v-for="(slide, idx) in leftHeroSlides"
                 :key="slide.label"
@@ -255,13 +255,13 @@ onBeforeUnmount(() => {
           </div>
 
           <!-- Right Hero Copy & Unified Search Bar -->
-          <div class="lg:col-span-7 text-center lg:text-left space-y-5">
+          <div class="lg:col-span-7 text-center lg:text-left space-y-5 min-w-0">
             <div class="inline-flex items-center gap-2 bg-[#0A1128] text-[#D4F53C] px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider shadow-sm">
               <Bike class="w-3.5 h-3.5" />
               <span>Food, Stores &amp; Instant Bike Runs</span>
             </div>
 
-            <h1 class="text-4xl sm:text-6xl font-black text-[#0A1128] leading-[1.05] tracking-tight">
+            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black text-[#0A1128] leading-[1.05] tracking-tight">
               Anything in town,
               <span class="block text-white">delivered in minutes.</span>
             </h1>
@@ -275,29 +275,29 @@ onBeforeUnmount(() => {
               @submit.prevent="handleQuickSearch"
               class="mt-6 bg-white p-2 rounded-[26px] shadow-xl shadow-[#0A1128]/15 flex flex-col md:flex-row items-stretch md:items-center gap-2"
             >
-              <div class="flex items-center md:w-2/5 px-4 py-2.5 md:py-2 border-b md:border-b-0 md:border-r border-gray-100">
-                <MapPin class="w-4 h-4 text-[#0A1128] mr-2.5 flex-shrink-0" />
+              <div class="flex items-center md:w-[32%] min-w-0 px-3.5 py-2.5 md:py-2 border-b md:border-b-0 md:border-r border-gray-100">
+                <MapPin class="w-4 h-4 text-[#0A1128] mr-2 flex-shrink-0" />
                 <input
                   v-model="deliveryLocation"
                   type="text"
-                  placeholder="Your area or landmark..."
-                  class="w-full text-xs sm:text-sm font-bold text-[#0A1128] placeholder-gray-400 bg-transparent border-0 focus:outline-none"
+                  placeholder="Area or landmark..."
+                  class="w-full min-w-0 text-xs sm:text-sm font-bold text-[#0A1128] placeholder-gray-400 bg-transparent border-0 focus:outline-none"
                 />
               </div>
 
-              <div class="flex items-center flex-1 px-4 py-2.5 md:py-2">
-                <Search class="w-4 h-4 text-gray-400 mr-2.5 flex-shrink-0" />
+              <div class="flex items-center flex-1 min-w-0 px-3.5 py-2.5 md:py-2">
+                <Search class="w-4 h-4 text-gray-400 mr-2 flex-shrink-0" />
                 <input
                   v-model="searchQuery"
                   type="text"
-                  placeholder="Jollof, gadgets, apparel, appliances, or beauty..."
-                  class="w-full text-xs sm:text-sm font-bold text-[#0A1128] placeholder-gray-400 bg-transparent border-0 focus:outline-none"
+                  placeholder="Jollof, gadgets, apparel..."
+                  class="w-full min-w-0 text-xs sm:text-sm font-bold text-[#0A1128] placeholder-gray-400 bg-transparent border-0 focus:outline-none"
                 />
               </div>
 
               <button
                 type="submit"
-                class="bg-[#0A1128] hover:bg-[#16224a] text-[#D4F53C] font-black px-7 py-3.5 rounded-[20px] text-xs uppercase tracking-wider transition cursor-pointer border-0 flex items-center justify-center gap-2 active:scale-95"
+                class="bg-[#0A1128] hover:bg-[#16224a] text-[#D4F53C] font-black px-6 py-3.5 rounded-[20px] text-xs uppercase tracking-wider transition cursor-pointer border-0 flex items-center justify-center gap-2 active:scale-95 shrink-0"
               >
                 <span>Explore</span>
                 <ArrowRight class="w-4 h-4" />
@@ -320,10 +320,16 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- Glovo-Style Curved Bottom Wave Transition -->
-      <div class="absolute bottom-0 left-0 right-0 overflow-hidden leading-none pointer-events-none">
-        <svg viewBox="0 0 1440 56" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-full h-7 sm:h-11 preserve-3d">
-          <path d="M0 56H1440V18C1180 56 880 0 540 24C260 44 100 28 0 12V56Z" fill="#FFFFFF" />
+      <!-- Flush Bottom Curved Transition Into White Section Below -->
+      <div class="absolute inset-x-0 bottom-0 overflow-hidden leading-none pointer-events-none">
+        <svg
+          viewBox="0 0 1440 64"
+          preserveAspectRatio="none"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          class="w-full h-8 sm:h-11 lg:h-12 block"
+        >
+          <path d="M0 24C280 58 620 4 980 34C1180 50 1330 36 1440 20V64H0V24Z" fill="#FFFFFF" />
         </svg>
       </div>
     </section>
