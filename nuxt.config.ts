@@ -146,7 +146,7 @@ export default defineNuxtConfig({
     // Keys inside public are also accessible on the client-side
     public: {
       siteUrl,
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'https://www.useaika.ng',
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://www.useaika.ng',
       turnstileSiteKey: process.env.NUXT_PUBLIC_TURNSTILE_SITE_KEY || ''
     },
   }, 

@@ -20,7 +20,7 @@ import {
 import { useCart } from '~/composables/useCart'
 import VendorRecommendations from '~/components/VendorRecommendations.vue'
 import MarketplaceMenuItemRow from '~/components/marketplace/MarketplaceMenuItemRow.vue'
-import MarketplaceProductCard from '~/components/marketplace/MarketplaceProductCard.vue'
+import MarketplaceStoreProductCard from '~/components/marketplace/MarketplaceStoreProductCard.vue'
 import MarketplaceMenuOptionModal from '~/components/marketplace/MarketplaceMenuOptionModal.vue'
 
 definePageMeta({
@@ -472,7 +472,7 @@ const confirmMenuOption = (): void => {
               <!-- E-Commerce grid -->
               <div v-if="storePayload.business_type === 'e_commerce'">
                 <div v-if="storePayload.products.length > 0" class="grid grid-cols-2 gap-4 md:grid-cols-3">
-                  <MarketplaceProductCard
+                  <MarketplaceStoreProductCard
                     v-for="item in storePayload.products"
                     :key="item.id"
                     :item="item"
