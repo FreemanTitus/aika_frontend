@@ -2,13 +2,31 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useCookie, useRuntimeConfig } from '#app'
-import { 
-  MapPin, Navigation, Loader2, XCircle, 
-  ArrowLeft, Building2, ShoppingBag, Wallet
+import {
+  MapPin, Navigation, Loader2, XCircle,
+  ArrowLeft, Building2, ShoppingBag, Wallet, ExternalLink
 } from '@lucide/vue'
 import { useCart } from '~/composables/useCart'
 
 definePageMeta({ layout: 'marketplace' })
+
+interface CoverageAreaOption {
+  id: number
+  name: string
+  state_name: string
+  latitude?: number | null
+  longitude?: number | null
+}
+
+interface SavedCheckoutSession {
+  fingerprint: string
+  key: string
+  orderId?: string | null
+  paymentReference?: string | null
+  checkoutUrl?: string | null
+}
+
+const CHECKOUT_SESSION_KEY = 'aika_checkout_session'
 
 const config = useRuntimeConfig()
 const apiBase = config.public.apiBase
@@ -24,18 +42,12 @@ const customStreetDetails = ref('')
 const savedBaseLocation = ref('')
 const savedBaseLocationId = ref('')
 
-// Delivery option decided by the server (platform riders or the vendor's own delivery)
-interface CoverageAreaOption {
-  id: number
-  name: string
-  state_name: string
-  latitude?: number | null
-  longitude?: number | null
-}
 const coverageAreas = ref<CoverageAreaOption[]>([])
 const deliveredBy = ref<'platform' | 'vendor' | null>(null)
 const quoteNotice = ref('')
 const needsArea = ref(false)
+
+const primaryVendorId = computed(() => cartItems.value?.[0]?.storeId || null)
 
 // The area the checkout will send: saved hub (by id when known) or the one picked manually.
 const activeBaseLocation = computed(() => {
@@ -44,6 +56,53 @@ const activeBaseLocation = computed(() => {
     : customStreetDetails.value
   return raw !== null && raw !== undefined ? String(raw).trim() : ''
 })
+
+const cartFingerprint = computed(() =>
+  `${primaryVendorId.value}|${(deliveryAddress.value || '').trim()}|${activeBaseLocation.value}|` +
+  cartItems.value.map(i => `${i.id}:${i.quantity}`).sort().join(',')
+)
+
+const readCheckoutSession = (): SavedCheckoutSession | null => {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(CHECKOUT_SESSION_KEY) || 'null')
+    if (saved?.fingerprint === cartFingerprint.value && saved?.key) return saved
+  } catch { /* fall through and make a new one */ }
+  return null
+}
+
+const writeCheckoutSession = (patch: Partial<SavedCheckoutSession> & { key: string }) => {
+  const current = readCheckoutSession()
+  const next: SavedCheckoutSession = {
+    fingerprint: cartFingerprint.value,
+    key: patch.key,
+    orderId: patch.orderId !== undefined ? patch.orderId : current?.orderId ?? null,
+    paymentReference: patch.paymentReference !== undefined ? patch.paymentReference : current?.paymentReference ?? null,
+    checkoutUrl: patch.checkoutUrl !== undefined ? patch.checkoutUrl : current?.checkoutUrl ?? null,
+  }
+  sessionStorage.setItem(CHECKOUT_SESSION_KEY, JSON.stringify(next))
+}
+
+// One key per checkout attempt, kept in sessionStorage so a page refresh or retry reuses it.
+const getCheckoutKey = (): string => {
+  const existing = readCheckoutSession()
+  if (existing?.key) return existing.key
+
+  const key = (globalThis.crypto?.randomUUID?.()
+    ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = (Math.random() * 16) | 0
+      return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+    }))
+  writeCheckoutSession({ key })
+  return key
+}
+
+const resetCheckoutKey = () => sessionStorage.removeItem(CHECKOUT_SESSION_KEY)
+
+const pendingSession = ref<SavedCheckoutSession | null>(null)
+
+const syncPendingSessionState = () => {
+  pendingSession.value = readCheckoutSession()
+}
 
 const customerLatitude = ref<number | null>(null)
 const customerLongitude = ref<number | null>(null)
@@ -68,7 +127,6 @@ const deliveryQuoteData = ref({
 })
 
 const estimatedFinalTotal = computed(() => cartTotal.value + deliveryQuoteData.value.net_delivery_fee)
-const primaryVendorId = computed(() => cartItems.value?.[0]?.storeId || null)
 const backendHost = `${apiBase}`
 
 const getHubCoordinates = (areaIdentifier: string | number | null | undefined) => {
@@ -97,7 +155,9 @@ onMounted(async () => {
     router.push({ path: '/auth/login', query: { redirect: router.currentRoute.value.fullPath } })
     return
   }
-  
+
+  syncPendingSessionState()
+
   try {
     // 1. Load delivery coverage areas first so coordinates can fall back to hub geometry
     try {
@@ -112,7 +172,10 @@ onMounted(async () => {
 
     // 2. Fetch customer coordinates & saved address
     const customerCoordRes: any = await $fetch(`${backendHost}/api/v1/customer/coordinates`, {
-      headers: { 'ngrok-skip-browser-warning': 'true', ...(authToken.value ? { Authorization: `Bearer ${authToken.value}` } : {}) }
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+        ...(authToken.value ? { Authorization: `Bearer ${authToken.value}` } : {})
+      }
     })
     const cData = customerCoordRes?.data || {}
     if (cData) {
@@ -140,11 +203,12 @@ onMounted(async () => {
       customerLongitude.value = lng
     }
 
+    syncPendingSessionState()
+
     // 3. Fetch initial distance-based delivery quote & wallet balance
     await fetchDeliveryQuote()
-
-  } catch (e) { 
-    console.error("Initialization load failed", e) 
+  } catch (e) {
+    console.error('Initialization load failed', e)
   }
 })
 
@@ -183,13 +247,17 @@ watch([activeBaseLocation, customerLatitude, customerLongitude], () => {
   fetchDeliveryQuote()
 })
 
+watch(cartFingerprint, () => {
+  syncPendingSessionState()
+})
+
 const syncSelectedHubGps = () => {
   const targetArea = useSavedAddress.value
     ? (savedBaseLocationId.value || savedBaseLocation.value)
     : customStreetDetails.value
 
   if (!targetArea) {
-    triggerErrorPopup("Location Required", "Please select a delivery hub area first.")
+    triggerErrorPopup('Location Required', 'Please select a delivery hub area first.')
     return
   }
 
@@ -202,7 +270,7 @@ const syncSelectedHubGps = () => {
     isLocatingGps.value = false
   } else {
     isLocatingGps.value = false
-    triggerErrorPopup("Coordinates Unavailable", "No hub coordinates configured for the selected area.")
+    triggerErrorPopup('Coordinates Unavailable', 'No hub coordinates configured for the selected area.')
   }
 }
 
@@ -213,7 +281,10 @@ const fetchDeliveryQuote = async () => {
   try {
     const res: any = await $fetch(`${backendHost}/api/v1/marketplace/quote-delivery/${primaryVendorId.value}`, {
       method: 'POST',
-      headers: { 'ngrok-skip-browser-warning': 'true', ...(authToken.value ? { Authorization: `Bearer ${authToken.value}` } : {}) },
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+        ...(authToken.value ? { Authorization: `Bearer ${authToken.value}` } : {})
+      },
       body: {
         latitude: customerLatitude.value,
         longitude: customerLongitude.value,
@@ -233,20 +304,21 @@ const fetchDeliveryQuote = async () => {
       }
     }
   } catch (e: any) {
-    console.error("Failed to fetch live delivery quote", e)
+    console.error('Failed to fetch live delivery quote', e)
     const detail = e?.data?.detail
-    if (detail) triggerErrorPopup("Delivery unavailable", detail)
+    if (detail) triggerErrorPopup('Delivery unavailable', detail)
   }
 }
 
 const handleFinalCheckoutSubmit = async () => {
   if (isSubmittingOrder.value || !primaryVendorId.value) return
-  isSubmittingOrder.value = true 
-  
+  isSubmittingOrder.value = true
+
+  const checkoutKey = getCheckoutKey()
   const resolvedBaseLocation = activeBaseLocation.value
 
   const payload = {
-    delivery_address: (deliveryAddress.value || "").trim(),
+    delivery_address: (deliveryAddress.value || '').trim(),
     base_location: resolvedBaseLocation,
     latitude: customerLatitude.value,
     longitude: customerLongitude.value,
@@ -254,35 +326,66 @@ const handleFinalCheckoutSubmit = async () => {
   }
 
   try {
-    const res: any = await $fetch(`${backendHost}/api/v1/marketplace/checkout/${primaryVendorId.value}`, {
-      method: 'POST',
-      headers: { 'ngrok-skip-browser-warning': 'true', ...(authToken.value ? { Authorization: `Bearer ${authToken.value}` } : {}), 'Content-Type': 'application/json' },
-      body: payload
-    })
+    const res: any = await $fetch(
+      `${backendHost}/api/v1/marketplace/checkout/${primaryVendorId.value}`,
+      {
+        method: 'POST',
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+          'Idempotency-Key': checkoutKey,
+          ...(authToken.value ? { Authorization: `Bearer ${authToken.value}` } : {}),
+          'Content-Type': 'application/json'
+        },
+        body: payload
+      }
+    )
 
     const checkoutUrl = res?.checkout_url || res?.data?.link || res?.data?.checkout_url || res?.data?.redirect_url
+    const orderId = res?.order_id || res?.data?.order_id || null
+    const paymentReference = res?.payment_reference || res?.data?.reference || null
 
     if (res?.status === 'success' && checkoutUrl) {
+      // Persist checkout session metadata before clearing cart or leaving the page
+      writeCheckoutSession({
+        key: checkoutKey,
+        orderId,
+        paymentReference,
+        checkoutUrl,
+      })
+      syncPendingSessionState()
       clearCart()
       window.location.href = checkoutUrl
     } else {
-      triggerErrorPopup("Payment Failed", res?.message || "Could not initialize payment session.")
-      isSubmittingOrder.value = false 
+      triggerErrorPopup('Payment Failed', res?.message || 'Could not initialize payment session.')
+      isSubmittingOrder.value = false
     }
   } catch (err: any) {
-    triggerErrorPopup("Checkout Interruption", err?.data?.detail || err?.message || "Payment gateway connection failed.")
-    isSubmittingOrder.value = false 
+    isSubmittingOrder.value = false
+    if (err?.statusCode === 409 || err?.status === 409) {
+      resetCheckoutKey()
+      syncPendingSessionState()
+    }
+    triggerErrorPopup(
+      'Checkout Interruption',
+      err?.data?.detail || err?.message || 'Payment gateway connection failed. If your network dropped, retry with the same checkout session or check your orders.'
+    )
   }
 }
 
-const formatMoney = (v: number) => "₦" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const resumeSavedPaymentSession = () => {
+  if (pendingSession.value?.checkoutUrl) {
+    window.location.href = pendingSession.value.checkoutUrl
+  }
+}
+
+const formatMoney = (v: number) => '₦' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const triggerErrorPopup = (t: string, d: string) => { errorMessageTitle.value = t; errorMessageDetail.value = d }
 </script>
 
 <template>
   <main class="bg-[#F8FAFC] min-h-screen py-10 px-4 sm:px-6 lg:px-12 font-sans text-left text-[#0A1128]">
     <div class="max-w-6xl mx-auto space-y-8">
-      
+
       <div class="flex items-center space-x-4">
         <button @click="router.back()" class="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center hover:bg-gray-50 transition shadow-sm cursor-pointer">
           <ArrowLeft class="w-4 h-4 text-gray-700" />
@@ -290,10 +393,28 @@ const triggerErrorPopup = (t: string, d: string) => { errorMessageTitle.value = 
         <h1 class="text-2xl sm:text-3xl font-black text-[#0A1128] tracking-tight">Checkout Order Hub</h1>
       </div>
 
+      <div v-if="pendingSession?.checkoutUrl" class="bg-amber-50 border border-amber-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="space-y-1 text-xs text-amber-900">
+          <p class="font-black uppercase tracking-wider text-amber-800">Payment Link Ready</p>
+          <p class="font-semibold">
+            An existing checkout link was already generated for this order
+            <span v-if="pendingSession.paymentReference" class="font-mono">({{ pendingSession.paymentReference }})</span>.
+          </p>
+        </div>
+        <button
+          type="button"
+          @click="resumeSavedPaymentSession"
+          class="bg-amber-900 text-white px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 hover:bg-amber-950 transition cursor-pointer border-0 shrink-0"
+        >
+          <span>Open Payment Page</span>
+          <ExternalLink class="w-3.5 h-3.5" />
+        </button>
+      </div>
+
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        
+
         <div class="lg:col-span-2 space-y-6">
-          
+
           <div class="bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm">
             <div class="flex items-center justify-between mb-6">
               <h2 class="text-[11px] font-black uppercase text-gray-400 tracking-wider flex items-center gap-2">
@@ -309,7 +430,7 @@ const triggerErrorPopup = (t: string, d: string) => { errorMessageTitle.value = 
               <p class="text-sm font-bold text-[#047857] flex items-center gap-2">
                 <span class="text-rose-600 text-lg leading-none mt-[-2px]">
                   <MapPin class="w-3.5 h-3.5" />
-                </span> 
+                </span>
                 {{ deliveryAddress || 'No address saved. Please update profile.' }}
               </p>
               <div class="flex items-center justify-between pl-6 text-[11px] text-[#10B981] font-medium">
@@ -339,11 +460,11 @@ const triggerErrorPopup = (t: string, d: string) => { errorMessageTitle.value = 
                 <label class="text-[10px] font-black uppercase tracking-wider text-gray-400">Specific Street Details or Landmark *</label>
                 <input v-model="deliveryAddress" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 text-xs font-semibold focus:border-emerald-500 outline-none transition" placeholder="e.g., Opposite Blue Gate, House 4..." />
               </div>
-              
+
               <div class="flex items-center justify-between pt-1">
                 <button type="button" @click="syncSelectedHubGps" :disabled="isLocatingGps || !customStreetDetails" class="text-[10px] font-black uppercase text-emerald-600 hover:text-emerald-700 flex items-center gap-2 cursor-pointer border-0 bg-transparent transition disabled:opacity-50">
                   <Loader2 v-if="isLocatingGps" class="w-3.5 h-3.5 animate-spin" />
-                  <Navigation v-else class="w-3.5 h-3.5" /> 
+                  <Navigation v-else class="w-3.5 h-3.5" />
                   {{ isLocatingGps ? 'Syncing Hub...' : 'Sync Selected Hub Coordinates' }}
                 </button>
                 <span v-if="customerLatitude" class="text-[10px] font-mono text-emerald-700 font-bold">✓ Hub Coordinates Locked</span>
@@ -355,11 +476,11 @@ const triggerErrorPopup = (t: string, d: string) => { errorMessageTitle.value = 
             <h2 class="text-[11px] font-black uppercase text-gray-400 tracking-wider flex items-center gap-2 mb-6">
               <ShoppingBag class="w-3.5 h-3.5" /> Order Contents
             </h2>
-            
+
             <div class="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
-              <div 
-                v-for="item in cartItems" 
-                :key="item.id" 
+              <div
+                v-for="item in cartItems"
+                :key="item.id"
                 class="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl border border-gray-100/80"
               >
                 <div class="space-y-1 max-w-[70%]">
@@ -371,7 +492,7 @@ const triggerErrorPopup = (t: string, d: string) => { errorMessageTitle.value = 
                     Qty: {{ item.quantity }}
                   </span>
                 </div>
-                <p class="font-mono font-bold text-sm text-[#0A1128]">{{ formatMoney(item.price) }}</p>
+                <p class="font-mono font-bold text-sm text-[#0A1128]">{{ formatMoney(item.price * item.quantity) }}</p>
               </div>
             </div>
           </div>
@@ -379,13 +500,13 @@ const triggerErrorPopup = (t: string, d: string) => { errorMessageTitle.value = 
 
         <div class="bg-white rounded-[32px] border border-gray-100 p-6 sm:p-8 shadow-sm lg:sticky lg:top-8 space-y-6">
           <h3 class="text-sm font-black uppercase tracking-wider text-[#0A1128]">Invoice</h3>
-          
+
           <div class="space-y-4 text-sm font-bold text-[#333]">
             <div class="flex justify-between items-center">
               <span>Subtotal</span>
               <span class="font-mono text-[#0A1128]">{{ formatMoney(cartTotal) }}</span>
             </div>
-            
+
             <div v-if="needsArea" class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 font-bold">
               {{ quoteNotice || 'Select your delivery area to see the delivery option and fee.' }}
             </div>
@@ -413,17 +534,17 @@ const triggerErrorPopup = (t: string, d: string) => { errorMessageTitle.value = 
               </span>
               <span class="font-mono font-black">-{{ formatMoney(deliveryQuoteData.wallet_applied_to_delivery) }}</span>
             </div>
-            
+
             <div class="pt-6 border-t border-gray-100 flex justify-between items-center">
               <span class="text-lg font-black text-[#059669]">Total</span>
               <span class="text-xl font-black font-mono text-[#059669]">{{ formatMoney(estimatedFinalTotal) }}</span>
             </div>
           </div>
 
-          <button 
-            @click="handleFinalCheckoutSubmit" 
-            :disabled="isSubmittingOrder" 
-            class="w-full bg-[#0A1128] text-white py-4 rounded-2xl font-black text-sm hover:bg-[#111827] transition shadow-md flex items-center justify-center gap-2 cursor-pointer border-0 outline-none"
+          <button
+            @click="handleFinalCheckoutSubmit"
+            :disabled="isSubmittingOrder"
+            class="w-full bg-[#0A1128] text-white py-4 rounded-2xl font-black text-sm hover:bg-[#111827] transition shadow-md flex items-center justify-center gap-2 cursor-pointer border-0 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Loader2 v-if="isSubmittingOrder" class="w-4 h-4 animate-spin text-white" />
             <span>{{ isSubmittingOrder ? 'Processing...' : 'Pay Securely Now' }}</span>
