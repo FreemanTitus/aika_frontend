@@ -110,7 +110,7 @@ export default defineNuxtConfig({
   },
 
   pwa: {
-    strategies: 'injectManifest',
+    strategies: 'buildSW',
     registerType: 'autoUpdate',
     manifest: {
       id: '/marketplace',
@@ -135,7 +135,7 @@ export default defineNuxtConfig({
         { name: 'My Orders', short_name: 'Orders', url: '/customer/dashboard', icons: [{ src: '/icons/icon-192x192.png', sizes: '192x192' }] },
       ],
     },
-    injectManifest: {
+    buildSW: {
       swSrc: 'service-worker/sw.ts',
       globPatterns: ['**/*.{js,css,html,png,svg,ico,mp3}'],
     },
