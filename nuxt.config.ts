@@ -110,10 +110,10 @@ export default defineNuxtConfig({
   },
 
   pwa: {
-    strategies: 'buildSW',
+    strategies: 'injectManifest',
     registerType: 'autoUpdate',
     manifest: {
-      id: '/',
+      id: '/marketplace',
       name: 'Aika | Shop, Send, Bike Ride & Earn',
       short_name: 'Aika',
       description: 'All-in-one multi-vendor marketplace, logistics, errand, and cross-town ride booking platform in Nigeria.',
@@ -135,7 +135,7 @@ export default defineNuxtConfig({
         { name: 'My Orders', short_name: 'Orders', url: '/customer/dashboard', icons: [{ src: '/icons/icon-192x192.png', sizes: '192x192' }] },
       ],
     },
-    buildSW: {
+    injectManifest: {
       swSrc: 'service-worker/sw.ts',
       globPatterns: ['**/*.{js,css,html,png,svg,ico,mp3}'],
     },
@@ -146,7 +146,7 @@ export default defineNuxtConfig({
     // Keys inside public are also accessible on the client-side
     public: {
       siteUrl,
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://www.useaika.ng',
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'https://www.useaika.ng',
       turnstileSiteKey: process.env.NUXT_PUBLIC_TURNSTILE_SITE_KEY || ''
     },
   }, 

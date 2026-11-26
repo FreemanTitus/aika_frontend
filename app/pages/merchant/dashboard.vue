@@ -1,14 +1,14 @@
 <!-- pages/merchant/dashboard.vue -->
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter, useCookie, useRuntimeConfig } from '#app'
-import { 
-  DollarSign, 
-  ShoppingBag, 
-  TrendingUp, 
-  Clock, 
+import { useCookie, useRuntimeConfig } from '#app'
+import {
+  DollarSign,
+  ShoppingBag,
+  TrendingUp,
+  Clock,
   ArrowUpRight,
-  Plus, 
+  Plus,
   Layers,
   ShieldCheck,
   AlertTriangle,
@@ -40,7 +40,7 @@ const error = ref<any>(null)
 const fetchDashboardData = async () => {
   pending.value = true
   error.value = null
-  
+
   const authToken = useCookie('auth_token')
 
   try {
@@ -57,7 +57,15 @@ const fetchDashboardData = async () => {
       metrics: rawData.metrics || { total_revenue: 0, orders_count: 0, success_rate: 0, active_deliveries: 0 },
       orders: rawData.recent_orders || [],
       trends: rawData.chart_trends || { days_labels: [], days_revenue: [], days_volumes: [] },
-      subscription: rawData.subscription || { has_valid_access: false, plan_name: 'No Plan', remaining_orders: 0 }
+      subscription: rawData.subscription || {
+        has_valid_access: false,
+        plan_name: 'No Active Plan',
+        remaining_orders: 0,
+        is_on_trial: false,
+        trial_days_remaining: 0,
+        trial_ends_at: null,
+        access_reason: 'none'
+      }
     }
   } catch (err: any) {
     console.error("Merchant dashboard resolution error:", err)
@@ -72,6 +80,23 @@ onMounted(() => {
   fetchDashboardData()
 })
 
+const subStatus = computed(() => dashboardPayload.value?.subscription || {})
+const isOnFreeTrial = computed(() => Boolean(subStatus.value?.is_on_trial))
+const hasValidAccess = computed(() => Boolean(subStatus.value?.has_valid_access))
+const trialDaysLeft = computed(() => Number(subStatus.value?.trial_days_remaining || 0))
+
+const formattedTrialEndDate = computed(() => {
+  const rawDate = subStatus.value?.trial_ends_at
+  if (!rawDate) return null
+  const parsed = new Date(rawDate)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed.toLocaleDateString('en-NG', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  })
+})
+
 const filteredOrders = computed(() => {
   if (!dashboardPayload.value?.orders) return []
   if (activeFilter.value === 'all') return dashboardPayload.value.orders
@@ -84,14 +109,14 @@ const chartData = computed(() => {
   const trends = dashboardPayload.value?.trends || {}
 
   return {
-    labels: isDays 
-      ? (trends.days_labels?.length ? trends.days_labels : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) 
+    labels: isDays
+      ? (trends.days_labels?.length ? trends.days_labels : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
       : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
     datasets: [
       {
         label: 'Store Revenue (₦)',
-        data: isDays 
-          ? (trends.days_revenue?.length ? trends.days_revenue : [0, 0, 0, 0, 0, 0, 0]) 
+        data: isDays
+          ? (trends.days_revenue?.length ? trends.days_revenue : [0, 0, 0, 0, 0, 0, 0])
           : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         borderColor: '#84cc16',
         backgroundColor: 'rgba(132, 204, 22, 0.1)',
@@ -101,8 +126,8 @@ const chartData = computed(() => {
       },
       {
         label: 'Order Volume',
-        data: isDays 
-          ? (trends.days_volumes?.length ? trends.days_volumes : [0, 0, 0, 0, 0, 0, 0]) 
+        data: isDays
+          ? (trends.days_volumes?.length ? trends.days_volumes : [0, 0, 0, 0, 0, 0, 0])
           : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         borderColor: '#0A1128',
         backgroundColor: 'rgba(10, 17, 40, 0.05)',
@@ -151,18 +176,18 @@ const getStatusClass = (status: string) => {
 <template>
   <div class="py-8 px-4 sm:px-6 lg:px-8 text-left">
     <div class="space-y-8">
-      
+
       <!-- TOP LEVEL ACTIONS BAR -->
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-200 pb-5">
         <div>
           <h1 class="text-2xl sm:text-3xl font-black text-[#0A1128] tracking-tight">Merchant Hub</h1>
           <p class="text-sm text-gray-500 font-medium mt-1">Monitor store dispatch tracking arrays and earnings metrics.</p>
         </div>
-        
+
         <div class="flex items-center space-x-3 shrink-0">
           <NuxtLink to="/merchant/subscriptions" class="bg-white hover:bg-gray-50 text-[#0A1128] border border-gray-200 font-black text-sm px-4 py-3 rounded-xl shadow-sm transition flex items-center space-x-2 cursor-pointer">
             <Layers class="w-4 h-4 text-indigo-600" />
-            <span>Subscription & Billing</span>
+            <span>{{ isOnFreeTrial ? 'Trial & Plans' : 'Subscription & Billing' }}</span>
           </NuxtLink>
 
           <NuxtLink to="/merchant/products/create" class="bg-[#D4F53C] hover:bg-opacity-90 text-[#0A1128] font-black text-sm px-4 py-3 rounded-xl shadow-sm transition flex items-center space-x-2 cursor-pointer">
@@ -174,51 +199,120 @@ const getStatusClass = (status: string) => {
 
       <!-- Loader Shell Framework Overlay -->
       <div v-if="pending" class="py-24 text-center">
-          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0A1128] mx-auto"></div>
-          <p class="text-gray-400 text-sm mt-4 font-bold">Querying merchant ledger summaries...</p>
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0A1128] mx-auto"></div>
+        <p class="text-gray-400 text-sm mt-4 font-bold">Querying merchant ledger summaries...</p>
       </div>
 
       <!-- Error State Panel -->
       <div v-else-if="error" class="py-16 text-center bg-white border border-gray-100 rounded-2xl p-6 shadow-sm max-w-md mx-auto space-y-2">
-          <p class="text-rose-600 font-black text-sm uppercase tracking-wider">Ledger Synchronization Failure</p>
-          <p class="text-xs text-gray-400 font-semibold">{{ error.data?.detail || error.message || "Credential token handshake rejected." }}</p>
+        <p class="text-rose-600 font-black text-sm uppercase tracking-wider">Ledger Synchronization Failure</p>
+        <p class="text-xs text-gray-400 font-semibold">{{ error.data?.detail || error.message || "Credential token handshake rejected." }}</p>
       </div>
 
       <!-- Metrics Panels & Table View -->
       <div v-else-if="dashboardPayload" class="space-y-8">
-        
-        <!-- SUBSCRIPTION STATUS ALERT BANNER -->
-        <div 
-          :class="dashboardPayload.subscription?.has_valid_access ? 'bg-gradient-to-r from-emerald-900 to-emerald-800 border-emerald-700' : 'bg-gradient-to-r from-rose-900 to-[#0A1128] border-rose-700'"
+
+        <!-- FREE TRIAL / SUBSCRIPTION STATUS BANNER (FREE TRIAL PRIORITIZED FIRST) -->
+        <div
+          :class="
+            isOnFreeTrial
+              ? 'bg-gradient-to-r from-[#0A1128] to-[#1b2d5c] border-[#D4F53C]/50'
+              : hasValidAccess
+                ? 'bg-gradient-to-r from-emerald-900 to-emerald-800 border-emerald-700'
+                : 'bg-gradient-to-r from-rose-900 to-[#0A1128] border-rose-700'
+          "
           class="p-6 rounded-[24px] text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg border"
         >
           <div class="flex items-center space-x-4">
-            <div :class="dashboardPayload.subscription?.has_valid_access ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'" class="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0">
-              <ShieldCheck v-if="dashboardPayload.subscription?.has_valid_access" class="w-6 h-6" />
+            <div
+              :class="
+                isOnFreeTrial
+                  ? 'bg-[#D4F53C]/20 text-[#D4F53C]'
+                  : hasValidAccess
+                    ? 'bg-emerald-500/20 text-emerald-300'
+                    : 'bg-rose-500/20 text-rose-300'
+              "
+              class="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
+            >
+              <Sparkles v-if="isOnFreeTrial" class="w-6 h-6" />
+              <ShieldCheck v-else-if="hasValidAccess" class="w-6 h-6" />
               <AlertTriangle v-else class="w-6 h-6" />
             </div>
+
             <div>
-              <div class="flex items-center space-x-2">
-                <span class="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md" :class="dashboardPayload.subscription?.has_valid_access ? 'bg-emerald-400/20 text-emerald-300' : 'bg-rose-400/20 text-rose-300'">
-                  Tier: {{ dashboardPayload.subscription?.plan_name || 'No Active Plan' }}
+              <div class="flex flex-wrap items-center gap-2">
+                <span
+                  :class="
+                    isOnFreeTrial
+                      ? 'bg-[#D4F53C] text-[#0A1128]'
+                      : hasValidAccess
+                        ? 'bg-emerald-400/20 text-emerald-300'
+                        : 'bg-rose-400/20 text-rose-300'
+                  "
+                  class="text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-md"
+                >
+                  {{
+                    isOnFreeTrial
+                      ? `7-Day Free Trial · ${trialDaysLeft} ${trialDaysLeft === 1 ? 'Day' : 'Days'} Left`
+                      : `Tier: ${subStatus?.plan_name || 'No Active Plan'}`
+                  }}
+                </span>
+                <span v-if="isOnFreeTrial && formattedTrialEndDate" class="text-[11px] text-gray-300 font-semibold">
+                  Ends {{ formattedTrialEndDate }}
                 </span>
               </div>
+
               <h3 class="text-base font-black tracking-tight mt-1">
-                {{ dashboardPayload.subscription?.has_valid_access ? 'Subscription Active & Operational' : 'Subscription Required / Expired' }}
+                <template v-if="isOnFreeTrial">
+                  You’re on Your 7-Day Free Trial — Storefront &amp; Listings Active
+                </template>
+                <template v-else-if="hasValidAccess">
+                  Subscription Active &amp; Operational
+                </template>
+                <template v-else-if="subStatus?.access_reason === 'trial_expired'">
+                  Your 7-Day Free Trial Has Ended
+                </template>
+                <template v-else>
+                  Subscription Required / Expired
+                </template>
               </h3>
+
               <p class="text-xs text-gray-300 font-medium mt-0.5">
-                {{ dashboardPayload.subscription?.has_valid_access ? `Remaining order capacity: ${dashboardPayload.subscription?.remaining_orders ?? 'Unlimited'}` : 'You cannot publish products or accept orders without an active subscription plan.' }}
+                <template v-if="isOnFreeTrial">
+                  Enjoy full access during your 7-day trial window. Pick a subscription plan anytime before your trial ends so your store stays live without interruption.
+                </template>
+                <template v-else-if="hasValidAccess">
+                  Remaining order capacity: {{ subStatus?.remaining_orders ?? 'Unlimited' }}
+                </template>
+                <template v-else-if="subStatus?.access_reason === 'trial_expired'">
+                  Your 7-day free trial expired. Subscribe to a plan to keep your storefront visible, publish products, and receive orders.
+                </template>
+                <template v-else>
+                  You cannot publish products or accept orders without an active subscription plan.
+                </template>
               </p>
             </div>
           </div>
 
-          <NuxtLink 
+          <NuxtLink
             to="/merchant/subscriptions"
-            :class="dashboardPayload.subscription?.has_valid_access ? 'bg-white text-emerald-900 hover:bg-emerald-50' : 'bg-[#D4F53C] text-[#0A1128] hover:bg-opacity-90'"
+            :class="
+              isOnFreeTrial || !hasValidAccess
+                ? 'bg-[#D4F53C] text-[#0A1128] hover:bg-opacity-90'
+                : 'bg-white text-emerald-900 hover:bg-emerald-50'
+            "
             class="px-5 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition shadow-md flex items-center space-x-2 shrink-0 cursor-pointer"
           >
             <Sparkles class="w-4 h-4" />
-            <span>{{ dashboardPayload.subscription?.has_valid_access ? 'Manage Plan' : 'Subscribe / Renew Now' }}</span>
+            <span>
+              {{
+                isOnFreeTrial
+                  ? 'Upgrade Before Trial Ends'
+                  : hasValidAccess
+                    ? 'Manage Plan'
+                    : 'Subscribe / Renew Now'
+              }}
+            </span>
           </NuxtLink>
         </div>
 
@@ -262,21 +356,21 @@ const getStatusClass = (status: string) => {
           <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-4">
             <div>
               <h3 class="font-black text-sm uppercase tracking-wider text-[#0A1128] flex items-center gap-2">
-                <TrendingUp class="w-4 h-4 text-[#84cc16]" /> Revenue & Store Performance Trends
+                <TrendingUp class="w-4 h-4 text-[#84cc16]" /> Revenue &amp; Store Performance Trends
               </h3>
               <p class="text-xs text-gray-400 mt-0.5">Visualizing sales breakdowns and order volumes over time periods</p>
             </div>
 
             <!-- Timeframe Selector Tabs -->
             <div class="bg-gray-50 p-1 rounded-2xl border border-gray-100 flex items-center gap-1">
-              <button 
+              <button
                 @click="selectedTimeframe = 'days'"
                 :class="selectedTimeframe === 'days' ? 'bg-[#0A1128] text-white shadow-sm' : 'text-gray-500 hover:text-[#0A1128]'"
                 class="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition cursor-pointer border-0 outline-none"
               >
                 Days
               </button>
-              <button 
+              <button
                 @click="selectedTimeframe = 'months'"
                 :class="selectedTimeframe === 'months' ? 'bg-[#0A1128] text-white shadow-sm' : 'text-gray-500 hover:text-[#0A1128]'"
                 class="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition cursor-pointer border-0 outline-none"
