@@ -1,15 +1,15 @@
 <!-- pages/merchant/inventory/add.vue -->
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue' 
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useCookie, useRuntimeConfig } from '#app'
-import { 
-  ArrowLeft, 
-  UploadCloud, 
-  Plus, 
-  Trash2, 
-  ToggleLeft, 
-  ToggleRight, 
-  Save, 
+import {
+  ArrowLeft,
+  UploadCloud,
+  Plus,
+  Trash2,
+  ToggleLeft,
+  ToggleRight,
+  Save,
   Loader2,
   X,
   FileText,
@@ -53,20 +53,19 @@ const restaurantCategoryDropdown = ref<Array<{ id: any; name: string }>>([])
 const brandDropdown = ref<Array<{ id: number; name: string }>>([])
 
 interface GalleryImageItem {
-  file: File | null;
-  preview: string;
-  caption: string;
-  file_key: string;
+  file: File | null
+  preview: string
+  caption: string
+  file_key: string
 }
 const galleryImages = ref<GalleryImageItem[]>([])
 
-// 3. Clean Master Input Form Payload State Tracking
+// 3. Clean Master Input Form Payload State Tracking (Category is derived on backend from MerchantProfile)
 const form = ref({
   name: '',
   description: '',
   key_features: [] as Array<{ title: string; value: string }>,
   price: 0,
-  category: '',
   sub_category_id: '',
   new_sub_category_name: '',
   brand_selection: '',
@@ -80,9 +79,9 @@ const form = ref({
 // RESTAURANT MENU PRICING OPTIONS STATE (e.g. Small / Big chicken portions)
 // =========================================================================
 interface UI_MenuOption {
-  name: string;
-  price: number;
-  is_available: boolean;
+  name: string
+  price: number
+  is_available: boolean
 }
 const menuOptions = ref<UI_MenuOption[]>([])
 
@@ -111,22 +110,20 @@ const loadProductCreationMetadata = async (subId: string = '') => {
     })
 
     if (isRestaurant.value) {
-      // Pull restaurant categories/subcategories directly from backend response keys
       restaurantCategoryDropdown.value = res?.sub_categories || res?.categories || res?.menu_categories || []
-      
-      // Safely check if the first item exists before extracting its id
+
       if (restaurantCategoryDropdown.value.length > 0 && !form.value.sub_category_id) {
         const firstCat = restaurantCategoryDropdown.value[0]
         form.value.sub_category_id = String(firstCat?.id ?? '')
       }
     } else {
       if (!subId) {
-        subCategoryDropdown.value = res?.sub_categories || res?.data || []
+        subCategoryDropdown.value = res?.sub_categories || []
       }
-      brandDropdown.value = res?.brands || res?.data || []
+      brandDropdown.value = res?.brands || []
     }
   } catch (err) {
-    console.error("Critical Page Metadata Initialization Exception:", err)
+    console.error('Critical Page Metadata Initialization Exception:', err)
   } finally {
     dropdownsLoading.value = false
   }
@@ -148,13 +145,13 @@ onMounted(async () => {
 
 // 5. Advanced E-Commerce Variation Matrix Engine Arrays
 interface UI_VariantOption { name: string; valInput: string; values: string[] }
-interface UI_SKUItem { 
-  value_names: string[]; 
-  stock_qty: number; 
-  price_override: number | null; 
-  bonanza_mode: boolean; 
-  discount_price: number | null; 
-  is_active: boolean; 
+interface UI_SKUItem {
+  value_names: string[]
+  stock_qty: number
+  price_override: number | null
+  bonanza_mode: boolean
+  discount_price: number | null
+  is_active: boolean
 }
 
 const variantOptions = ref<UI_VariantOption[]>([])
@@ -162,7 +159,9 @@ const skuItems = ref<UI_SKUItem[]>([])
 
 const addGalleryRowSlot = () => {
   galleryImages.value.push({
-    file: null, preview: '', caption: '',
+    file: null,
+    preview: '',
+    caption: '',
     file_key: `gallery_new_${Date.now()}_${galleryImages.value.length}`
   })
 }
@@ -250,10 +249,10 @@ const handlePrimaryImageUpload = (event: Event) => {
 
 const handlePublishProductSubmit = async () => {
   if (!form.value.name || form.value.price <= 0) {
-    errorMessage.value = "Please confirm name and price before publishing."
+    errorMessage.value = 'Please confirm name and price before publishing.'
     return
   }
-  
+
   isSubmitting.value = true
   errorMessage.value = null
   const formData = new FormData()
@@ -261,7 +260,6 @@ const handlePublishProductSubmit = async () => {
   formData.append('name', form.value.name.trim())
   formData.append('description', form.value.description.trim())
   formData.append('price', String(form.value.price))
-  formData.append('category', form.value.category)
   formData.append('bonanza_mode', String(form.value.bonanza_mode))
   formData.append('is_available', String(form.value.is_available))
   formData.append('image_key', 'image')
@@ -270,7 +268,10 @@ const handlePublishProductSubmit = async () => {
     formData.append('discount_price', String(form.value.discount_price))
   }
 
-  const targetSubCat = form.value.sub_category_id && form.value.sub_category_id.trim() !== "" ? form.value.sub_category_id : "NONE"
+  const targetSubCat =
+    form.value.sub_category_id && form.value.sub_category_id.trim() !== ''
+      ? form.value.sub_category_id
+      : 'NONE'
   formData.append('sub_category_id', targetSubCat)
 
   if (targetSubCat === 'CUSTOM' && form.value.new_sub_category_name) {
@@ -282,10 +283,13 @@ const handlePublishProductSubmit = async () => {
     formData.append('menu_options', JSON.stringify(menuOptions.value))
   } else {
     formData.append('key_features', JSON.stringify(form.value.key_features))
-    
-    const targetBrand = form.value.brand_selection && form.value.brand_selection.trim() !== "" ? form.value.brand_selection : "NONE"
+
+    const targetBrand =
+      form.value.brand_selection && form.value.brand_selection.trim() !== ''
+        ? form.value.brand_selection
+        : 'NONE'
     formData.append('brand_selection', targetBrand)
-    
+
     if (targetBrand === 'CUSTOM' && form.value.new_brand_name) {
       formData.append('new_brand_name', form.value.new_brand_name.trim())
     }
@@ -293,24 +297,30 @@ const handlePublishProductSubmit = async () => {
     if (variantOptions.value.length > 0) {
       const parsedOptions = variantOptions.value.map(vo => ({ name: vo.name, values: vo.values }))
       formData.append('variant_options', JSON.stringify(parsedOptions))
-      
+
       const parsedSKUs = skuItems.value.map(sk => ({
-        sku: `${form.value.name.trim()}-${sk.value_names.join('-')}`, 
+        sku: `${form.value.name.trim()}-${sk.value_names.join('-')}`,
         value_names: sk.value_names,
         stock_qty: Number(sk.stock_qty || 0),
         price_override: sk.price_override ? Number(sk.price_override) : null,
         bonanza_mode: Boolean(sk.bonanza_mode),
         discount_price: sk.bonanza_mode && sk.discount_price ? Number(sk.discount_price) : null,
-        value_ids: [], 
+        value_ids: [],
         is_active: Boolean(sk.is_active)
       }))
       formData.append('sku_items', JSON.stringify(parsedSKUs))
+    } else {
+      formData.append('variant_options', JSON.stringify([]))
+      formData.append('sku_items', JSON.stringify([]))
     }
 
     if (galleryImages.value.length > 0) {
-      const metadata = galleryImages.value.filter(img => img.file).map(img => ({
-        file_key: img.file_key, caption: img.caption.trim()
-      }))
+      const metadata = galleryImages.value
+        .filter(img => img.file)
+        .map(img => ({
+          file_key: img.file_key,
+          caption: img.caption.trim()
+        }))
       formData.append('gallery_images', JSON.stringify(metadata))
       galleryImages.value.forEach(img => {
         if (img.file) formData.append(img.file_key, img.file)
@@ -337,8 +347,8 @@ const handlePublishProductSubmit = async () => {
       router.push('/merchant/inventory')
     }
   } catch (err: any) {
-    console.error("Form transmission diagnostic:", err?.data)
-    const errorDetail = err?.data?.detail || err?.data?.message || err?.message || "Product creation rejected."
+    console.error('Form transmission diagnostic:', err?.data)
+    const errorDetail = err?.data?.detail || err?.data?.message || err?.message || 'Product creation rejected.'
     errorMessage.value = typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail)
   } finally {
     isSubmitting.value = false
@@ -348,7 +358,7 @@ const handlePublishProductSubmit = async () => {
 
 <template>
   <div class="py-10 px-4 sm:px-6 lg:px-12 bg-gradient-to-b from-gray-50 via-white to-gray-50/40 min-h-screen text-left selection:bg-[#D4F53C] selection:text-[#0A1128] relative">
-    
+
     <!-- ENHANCED GLOBAL BACKDROP BLUR PROCESSING SPINNER OVERLAY -->
     <Transition name="fade">
       <div v-if="isSubmitting" class="fixed inset-0 bg-[#0A1128]/70 backdrop-blur-md z-[9999] flex flex-col items-center justify-center space-y-4 select-none pointer-events-auto">
@@ -366,7 +376,7 @@ const handlePublishProductSubmit = async () => {
     </Transition>
 
     <div class="max-w-5xl mx-auto space-y-8 animate-fade-in" :class="{ 'opacity-40 pointer-events-none': isSubmitting }">
-      
+
       <!-- TOP INTERACTION CONSOLE ROUTING ACTION -->
       <div class="flex items-center space-x-2">
         <NuxtLink to="/merchant/inventory" class="p-2.5 bg-white border border-gray-200/60 rounded-xl shadow-2xs hover:bg-gray-50 transition text-gray-400 hover:text-[#0A1128] flex items-center justify-center cursor-pointer">
@@ -391,10 +401,10 @@ const handlePublishProductSubmit = async () => {
       </div>
 
       <form @submit.prevent="handlePublishProductSubmit" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
+
         <!-- LEFT COLUMNS MAIN FORM ELEMENTS -->
         <div class="lg:col-span-2 space-y-6">
-          
+
           <!-- SECTION 1: CORE IDENTITY SPECIFICATION SHEET -->
           <div class="bg-white p-6 rounded-[24px] border border-gray-100 shadow-xs space-y-4 relative group">
             <div class="absolute top-0 left-0 w-full h-[4px] bg-[#84cc16] rounded-t-full opacity-60"></div>
@@ -421,9 +431,9 @@ const handlePublishProductSubmit = async () => {
                 <Layers3 class="w-4 h-4 text-[#84cc16]" />
                 <span>Technical Key Specifications</span>
               </h2>
-              <button 
-                @click="addFeatureRow" 
-                type="button" 
+              <button
+                @click="addFeatureRow"
+                type="button"
                 class="text-xs bg-gray-50 border border-gray-200/60 hover:bg-[#D4F53C] hover:text-[#0A1128] text-[#0A1128] font-black px-3 py-1.5 rounded-lg flex items-center space-x-1 transition cursor-pointer"
               >
                 <Plus class="w-3.5 h-3.5 stroke-[3]" />
@@ -436,31 +446,31 @@ const handlePublishProductSubmit = async () => {
             </div>
 
             <div v-else class="space-y-3 animate-fade-in">
-              <div 
-                v-for="(feature, idx) in form.key_features" 
-                :key="idx" 
+              <div
+                v-for="(feature, idx) in form.key_features"
+                :key="idx"
                 class="flex items-center space-x-3 bg-gray-50/40 p-3 rounded-xl border border-gray-100/70"
               >
                 <span class="w-1.5 h-1.5 rounded-full bg-[#0A1128] shrink-0"></span>
 
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
-                  <input 
-                    v-model="feature.title" 
-                    type="text" 
-                    placeholder="e.g., Processor, RAM, Storage" 
-                    class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-black text-[#0A1128] focus:outline-none focus:border-[#0A1128] shadow-2xs" 
+                  <input
+                    v-model="feature.title"
+                    type="text"
+                    placeholder="e.g., Processor, RAM, Storage"
+                    class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-black text-[#0A1128] focus:outline-none focus:border-[#0A1128] shadow-2xs"
                   />
-                  <input 
-                    v-model="feature.value" 
-                    type="text" 
-                    placeholder="Specification value description payload..." 
-                    class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-semibold text-gray-600 sm:col-span-2 focus:outline-none focus:border-[#0A1128] shadow-2xs" 
+                  <input
+                    v-model="feature.value"
+                    type="text"
+                    placeholder="Specification value description payload..."
+                    class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-semibold text-gray-600 sm:col-span-2 focus:outline-none focus:border-[#0A1128] shadow-2xs"
                   />
                 </div>
 
-                <button 
-                  @click="removeFeatureRow(idx)" 
-                  type="button" 
+                <button
+                  @click="removeFeatureRow(idx)"
+                  type="button"
                   class="text-gray-400 hover:text-rose-600 p-1.5 bg-white border border-gray-200 rounded-xl shadow-2xs transition shrink-0"
                 >
                   <Trash2 class="w-3.5 h-3.5" />
@@ -486,7 +496,10 @@ const handlePublishProductSubmit = async () => {
                   </template>
                   <template v-else>
                     <ShoppingBag class="w-4 h-4 text-blue-600 stroke-[2.5]" />
-                    <span>E-Commerce Retail</span>
+                    <span>
+                      E-Commerce Retail
+                      <span v-if="ecommerceSubCategory" class="text-[#0A1128]">• {{ ecommerceSubCategory }}</span>
+                    </span>
                   </template>
                 </div>
               </div>
@@ -593,7 +606,7 @@ const handlePublishProductSubmit = async () => {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-fade-in" v-else>
               <div v-for="(img, idx) in galleryImages" :key="img.file_key" class="p-4 border border-gray-200/60 bg-gray-50/30 rounded-2xl flex flex-col space-y-3 relative group transition hover:shadow-xs bg-white">
                 <button @click="removeGalleryItemRow(idx)" type="button" class="absolute top-2 right-2 p-1.5 bg-white/90 border border-gray-100 rounded-lg text-gray-400 hover:text-rose-600 shadow-2xs transition z-10"><X class="w-3.5 h-3.5" /></button>
-                
+
                 <div class="w-full h-36 border-2 border-dashed border-gray-200 bg-white rounded-xl relative overflow-hidden flex flex-col items-center justify-center transition group-hover:border-gray-300">
                   <img v-if="img.preview" :src="img.preview" class="w-full h-full object-cover" />
                   <template v-else>
@@ -602,7 +615,7 @@ const handlePublishProductSubmit = async () => {
                     <input @change="handleGalleryFileSelection($event, idx)" type="file" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
                   </template>
                 </div>
-                
+
                 <input v-model="img.caption" type="text" placeholder="Caption label (e.g., Back Panel Profile)..." class="w-full bg-white border border-gray-200/80 rounded-xl px-3 py-2 text-[11px] font-semibold text-[#0A1128] focus:outline-none shadow-2xs" />
               </div>
             </div>
@@ -647,12 +660,12 @@ const handlePublishProductSubmit = async () => {
               <span class="text-[10px] font-black uppercase tracking-widest text-gray-400 block pl-0.5">Generated Variant SKU Target Allocations Matrix</span>
               <div class="border border-gray-100 rounded-2xl overflow-hidden divide-y divide-gray-100 shadow-sm bg-white">
                 <div v-for="(sku, sIdx) in skuItems" :key="sIdx" class="p-5 flex flex-col space-y-4 text-xs font-semibold hover:bg-gray-50/30 transition">
-                  
+
                   <div class="flex flex-wrap items-center justify-between border-b border-gray-100/60 pb-2.5 gap-2">
                     <span class="bg-[#0A1128] text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase font-mono tracking-wider shadow-2xs">
                       {{ sku.value_names.join(' / ') }}
                     </span>
-                    
+
                     <div class="flex items-center space-x-2">
                       <span class="text-[10px] font-black text-gray-400 uppercase tracking-wider flex items-center gap-1">
                         <Flame class="w-3 h-3 text-rose-500" /> Variant Discount Drop
@@ -690,7 +703,7 @@ const handlePublishProductSubmit = async () => {
 
         <!-- RIGHT SIDEBAR COLUMN CONTROLS PANELS -->
         <div class="space-y-6">
-          
+
           <!-- SECTION 7: GLOBAL PRODUCT PRICE HUB SETTINGS -->
           <div class="bg-white p-6 rounded-[24px] border border-gray-100 shadow-xs space-y-4">
             <h2 class="text-xs font-black uppercase text-[#0A1128] tracking-wider flex items-center space-x-2 border-b border-gray-50 pb-2.5">
@@ -726,7 +739,7 @@ const handlePublishProductSubmit = async () => {
           <!-- SECTION 8: PRIMARY HERO BRAND SHOWCASE DISPLAY FILE UPLOAD GRID -->
           <div class="bg-white p-6 rounded-[24px] border border-gray-100 shadow-xs space-y-4">
             <h2 class="text-xs font-black uppercase text-[#0A1128] tracking-wider border-b border-gray-50 pb-2.5">Primary Showcase Image</h2>
-            
+
             <div class="relative group border-2 border-dashed border-gray-200 hover:border-[#0A1128] rounded-2xl p-4 min-h-[180px] bg-gray-50/40 overflow-hidden flex flex-col items-center justify-center transition">
               <template v-if="primaryImagePreview">
                 <img :src="primaryImagePreview" class="absolute inset-0 w-full h-full object-cover animate-fade-in" />
@@ -748,7 +761,7 @@ const handlePublishProductSubmit = async () => {
               <Save v-else class="w-4 h-4 text-white" />
               <span>{{ isSubmitting ? 'Publishing Product...' : 'Publish Inventory Specification' }}</span>
             </button>
-            
+
             <NuxtLink to="/merchant/inventory" class="w-full bg-white hover:bg-gray-50 border border-gray-200 text-gray-400 font-black text-xs py-4 rounded-xl shadow-2xs transition flex items-center justify-center cursor-pointer">
               Cancel Configuration
             </NuxtLink>

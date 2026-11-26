@@ -2,14 +2,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute, useCookie, useRuntimeConfig } from '#app'
-import { 
-  ArrowLeft, 
-  UploadCloud, 
-  Plus, 
-  Trash2, 
-  ToggleLeft, 
-  ToggleRight, 
-  Save, 
+import {
+  ArrowLeft,
+  UploadCloud,
+  Plus,
+  Trash2,
+  ToggleLeft,
+  ToggleRight,
+  Save,
   Loader2,
   X,
   FileText,
@@ -36,6 +36,20 @@ const router = useRouter()
 const route = useRoute()
 const authToken = useCookie('auth_token')
 const product_id = route.params.id as string
+
+// Safe media URL helper fallback if not provided by an auto-imported composable
+const resolveMediaUrl = (path?: string | null): string => {
+  if (!path) return ''
+  if (typeof (globalThis as any).getMediaUrl === 'function') {
+    return (globalThis as any).getMediaUrl(path)
+  }
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path
+  }
+  const cleanBase = String(apiBase || '').replace(/\/+$/, '')
+  const cleanPath = path.startsWith('/') ? path : `/${path}`
+  return `${cleanBase}${cleanPath}`
+}
 
 // 1. Core Profile Multi-Tenant Configurations
 const businessTypeCookie = useCookie('business_type', { default: () => 'e_commerce' })
@@ -64,24 +78,21 @@ const restaurantCategoryDropdown = ref<Array<{ id: any; name: string }>>([])
 const brandDropdown = ref<Array<{ id: number; name: string }>>([])
 
 interface GalleryImageItem {
-  id?: number;
-  file: File | null;
-  preview: string;
-  caption: string;
-  file_key: string; 
-  is_existing: boolean;
+  id?: number
+  file: File | null
+  preview: string
+  caption: string
+  file_key: string
+  is_existing: boolean
 }
 const galleryImages = ref<GalleryImageItem[]>([])
 
-// 3. Clean Master Form State Tracking
+// 3. Clean Master Form State Tracking (Category is derived on backend from MerchantProfile)
 const form = ref({
   name: '',
   description: '',
   key_features: [] as Array<{ title: string; value: string }>,
   price: 0,
-  category: isRestaurant.value 
-    ? 'meals' 
-    : (ecommerceSubCategory.value ? String(ecommerceSubCategory.value).toLowerCase() : 'general'),
   sub_category_id: '',
   new_sub_category_name: '',
   brand_selection: '',
@@ -95,10 +106,10 @@ const form = ref({
 // RESTAURANT MENU OPTIONS STATE (Portions & Custom Pricing Tiers)
 // =========================================================================
 interface UI_MenuOption {
-  id?: number;
-  name: string;
-  price: number;
-  is_available: boolean;
+  id?: number
+  name: string
+  price: number
+  is_available: boolean
 }
 const menuOptions = ref<UI_MenuOption[]>([])
 
@@ -130,12 +141,12 @@ const loadDropdownMetadata = async (subId: string = '') => {
       restaurantCategoryDropdown.value = res?.sub_categories || res?.categories || res?.menu_categories || []
     } else {
       if (!subId) {
-        subCategoryDropdown.value = res?.sub_categories || res?.data || res || []
+        subCategoryDropdown.value = res?.sub_categories || []
       }
-      brandDropdown.value = res?.brands || res?.data || res || []
+      brandDropdown.value = res?.brands || []
     }
   } catch (err) {
-    console.error("Dropdown stream resolution operational fault:", err)
+    console.error('Dropdown stream resolution operational fault:', err)
   } finally {
     dropdownsLoading.value = false
   }
@@ -143,14 +154,14 @@ const loadDropdownMetadata = async (subId: string = '') => {
 
 // 5. Advanced SKU Variation Types
 interface UI_VariantOption { name: string; valInput: string; values: string[] }
-interface UI_SKUItem { 
-  id?: number; 
-  value_names: string[]; 
-  stock_qty: number; 
-  price_override: number | null; 
-  bonanza_mode: boolean; 
-  discount_price: number | null; 
-  is_active: boolean; 
+interface UI_SKUItem {
+  id?: number
+  value_names: string[]
+  stock_qty: number
+  price_override: number | null
+  bonanza_mode: boolean
+  discount_price: number | null
+  is_active: boolean
 }
 
 const variantOptions = ref<UI_VariantOption[]>([])
@@ -175,14 +186,14 @@ onMounted(async () => {
 
     const targetProduct = response?.data || response
     if (!targetProduct) {
-      alert("Requested operational inventory trace not found.")
+      alert('Requested operational inventory trace not found.')
       router.push('/merchant/inventory')
       return
     }
 
-    const vendorBusinessType = targetProduct.vendor_business_type 
-                             || targetProduct.business_type 
-                             || targetProduct.vendor?.business_type
+    const vendorBusinessType = targetProduct.vendor_business_type
+      || targetProduct.business_type
+      || targetProduct.vendor?.business_type
 
     if (vendorBusinessType) {
       detectedBusinessType.value = String(vendorBusinessType).trim().toLowerCase()
@@ -193,11 +204,12 @@ onMounted(async () => {
     form.value.name = targetProduct.name || ''
     form.value.description = targetProduct.description || ''
     form.value.price = targetProduct.price || 0
-    form.value.category = targetProduct.category || (isRestaurant.value ? 'restaurant' : 'general')
-    
+
     let resolvedSubId = ''
     if (targetProduct.sub_category) {
-      resolvedSubId = typeof targetProduct.sub_category === 'object' ? String(targetProduct.sub_category.id) : String(targetProduct.sub_category)
+      resolvedSubId = typeof targetProduct.sub_category === 'object'
+        ? String(targetProduct.sub_category.id)
+        : String(targetProduct.sub_category)
     } else {
       resolvedSubId = targetProduct.sub_category_id ? String(targetProduct.sub_category_id) : ''
     }
@@ -206,7 +218,7 @@ onMounted(async () => {
     if (!isRestaurant.value && resolvedSubId && resolvedSubId !== 'CUSTOM') {
       await loadDropdownMetadata(resolvedSubId)
     }
-    
+
     const dynamicBrandId = targetProduct.brand
       ? (typeof targetProduct.brand === 'object' ? String(targetProduct.brand.id) : String(targetProduct.brand))
       : (targetProduct.brand_id ? String(targetProduct.brand_id) : '')
@@ -217,7 +229,7 @@ onMounted(async () => {
     form.value.is_available = targetProduct.is_available !== false
 
     if (targetProduct.image) {
-      primaryImagePreview.value = getMediaUrl(targetProduct.image)
+      primaryImagePreview.value = resolveMediaUrl(targetProduct.image)
     }
 
     if (targetProduct.menu_options) {
@@ -235,7 +247,7 @@ onMounted(async () => {
         return {
           id: img.id,
           file: null,
-          preview: getMediaUrl(rawUrl) || '',
+          preview: resolveMediaUrl(rawUrl) || '',
           caption: img.caption || '',
           file_key: `gallery_existing_${idx}`,
           is_existing: true
@@ -244,13 +256,19 @@ onMounted(async () => {
     }
 
     if (targetProduct.key_features) {
-      form.value.key_features = typeof targetProduct.key_features === 'string' ? JSON.parse(targetProduct.key_features) : targetProduct.key_features
+      form.value.key_features = typeof targetProduct.key_features === 'string'
+        ? JSON.parse(targetProduct.key_features)
+        : targetProduct.key_features
     }
 
     if (targetProduct.variant_options) {
-      variantOptions.value = targetProduct.variant_options.map((o: any) => ({ name: o.name, valInput: '', values: o.values || [] }))
+      variantOptions.value = targetProduct.variant_options.map((o: any) => ({
+        name: o.name,
+        valInput: '',
+        values: o.values || []
+      }))
     }
-    
+
     if (targetProduct.sku_items) {
       skuItems.value = targetProduct.sku_items.map((s: any) => ({
         id: s.id,
@@ -262,7 +280,6 @@ onMounted(async () => {
         is_active: s.is_active !== false
       }))
     }
-    
   } catch (err: any) {
     alert(`Handshake error loading product details: ${err?.message || err}`)
   } finally {
@@ -282,7 +299,13 @@ watch(() => form.value.sub_category_id, async (newSubId) => {
 })
 
 const addGalleryRowSlot = () => {
-  galleryImages.value.push({ file: null, preview: '', caption: '', file_key: `gallery_new_${Date.now()}_${galleryImages.value.length}`, is_existing: false })
+  galleryImages.value.push({
+    file: null,
+    preview: '',
+    caption: '',
+    file_key: `gallery_new_${Date.now()}_${galleryImages.value.length}`,
+    is_existing: false
+  })
 }
 const handleGalleryFileSelection = (event: Event, index: number) => {
   const target = event.target as HTMLInputElement
@@ -346,7 +369,7 @@ const handlePrimaryImageUpload = (event: Event) => {
 
 const handleUpdateProductSubmit = async () => {
   if (!form.value.name || form.value.price <= 0) {
-    errorMessage.value = "Please confirm name and price before saving."
+    errorMessage.value = 'Please confirm name and price before saving.'
     return
   }
 
@@ -357,7 +380,6 @@ const handleUpdateProductSubmit = async () => {
   formData.append('name', form.value.name.trim())
   formData.append('description', form.value.description.trim())
   formData.append('price', String(form.value.price))
-  formData.append('category', form.value.category)
   formData.append('key_features', JSON.stringify(isRestaurant.value ? [] : form.value.key_features))
   formData.append('bonanza_mode', String(form.value.bonanza_mode))
   formData.append('is_available', String(form.value.is_available))
@@ -367,9 +389,11 @@ const handleUpdateProductSubmit = async () => {
     formData.append('discount_price', String(form.value.discount_price))
   }
 
-  const targetSubCat = form.value.sub_category_id && form.value.sub_category_id.trim() !== "" ? form.value.sub_category_id : "NONE"
+  const targetSubCat = form.value.sub_category_id && form.value.sub_category_id.trim() !== ''
+    ? form.value.sub_category_id
+    : 'NONE'
   formData.append('sub_category_id', targetSubCat)
-  
+
   if (targetSubCat === 'CUSTOM' && form.value.new_sub_category_name) {
     formData.append('new_sub_category_name', form.value.new_sub_category_name.trim())
   }
@@ -379,12 +403,12 @@ const handleUpdateProductSubmit = async () => {
     formData.append('sku_items', JSON.stringify([]))
     formData.append('variant_options', JSON.stringify([]))
     formData.append('gallery_images', JSON.stringify([]))
-  }
-
-  if (!isRestaurant.value) {
-    const targetBrand = form.value.brand_selection && form.value.brand_selection.trim() !== "" ? form.value.brand_selection : "NONE"
+  } else {
+    const targetBrand = form.value.brand_selection && form.value.brand_selection.trim() !== ''
+      ? form.value.brand_selection
+      : 'NONE'
     formData.append('brand_selection', targetBrand)
-    
+
     if (targetBrand === 'CUSTOM' && form.value.new_brand_name) {
       formData.append('new_brand_name', form.value.new_brand_name.trim())
     }
@@ -392,7 +416,7 @@ const handleUpdateProductSubmit = async () => {
     if (variantOptions.value.length > 0) {
       const parsedOptions = variantOptions.value.map(vo => ({ name: vo.name, values: vo.values }))
       formData.append('variant_options', JSON.stringify(parsedOptions))
-      
+
       const parsedSKUs = skuItems.value.map(sk => ({
         id: sk.id ? Number(sk.id) : null,
         item_id: sk.id ? Number(sk.id) : null,
@@ -400,12 +424,13 @@ const handleUpdateProductSubmit = async () => {
         price_override: sk.price_override ? Number(sk.price_override) : null,
         bonanza_mode: Boolean(sk.bonanza_mode),
         discount_price: sk.bonanza_mode && sk.discount_price ? Number(sk.discount_price) : null,
-        value_ids: [], 
+        value_ids: [],
         is_active: Boolean(sk.is_active),
         value_names: sk.value_names
       }))
       formData.append('sku_items', JSON.stringify(parsedSKUs))
     } else {
+      formData.append('variant_options', JSON.stringify([]))
       formData.append('sku_items', JSON.stringify([]))
     }
 
@@ -441,8 +466,8 @@ const handleUpdateProductSubmit = async () => {
       router.push('/merchant/inventory')
     }
   } catch (err: any) {
-    const serverErrorText = err?.data?.detail || err?.message || "An unresolved mutation fault occurred."
-    console.error("Validation breakdown details:", err?.data)
+    const serverErrorText = err?.data?.detail || err?.message || 'An unresolved mutation fault occurred.'
+    console.error('Validation breakdown details:', err?.data)
     errorMessage.value = typeof serverErrorText === 'string' ? serverErrorText : JSON.stringify(serverErrorText)
   } finally {
     isSubmitting.value = false
@@ -452,7 +477,7 @@ const handleUpdateProductSubmit = async () => {
 
 <template>
   <div class="py-10 px-4 sm:px-6 lg:px-12 bg-gradient-to-b from-gray-50 via-white to-gray-50/40 min-h-screen text-left selection:bg-[#D4F53C] selection:text-[#0A1128] relative">
-    
+
     <!-- GLOBAL PROCESSING BACKDROP MODAL -->
     <Transition name="fade">
       <div v-if="isSubmitting" class="fixed inset-0 bg-[#0A1128]/60 backdrop-blur-md z-[9999] flex flex-col items-center justify-center space-y-4 select-none pointer-events-auto">
@@ -473,7 +498,7 @@ const handleUpdateProductSubmit = async () => {
     </div>
 
     <div v-else class="max-w-5xl mx-auto space-y-8 animate-fade-in" :class="{ 'opacity-40 pointer-events-none': isSubmitting }">
-      
+
       <div class="flex items-center space-x-2">
         <NuxtLink to="/merchant/inventory" class="p-2.5 bg-white border border-gray-200/60 rounded-xl shadow-2xs hover:bg-gray-50 transition text-gray-400 hover:text-[#0A1128] flex items-center justify-center cursor-pointer">
           <ArrowLeft class="w-4 h-4" />
@@ -497,9 +522,9 @@ const handleUpdateProductSubmit = async () => {
       </div>
 
       <form @submit.prevent="handleUpdateProductSubmit" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
+
         <div class="lg:col-span-2 space-y-6">
-          
+
           <div class="bg-white p-6 rounded-[24px] border border-gray-100 shadow-xs space-y-4 relative group">
             <div class="absolute top-0 left-0 w-full h-[4px] bg-[#84cc16] rounded-t-full opacity-60"></div>
             <h2 class="text-xs font-black uppercase text-[#0A1128] tracking-wider flex items-center space-x-2 border-b border-gray-50 pb-2.5">
@@ -564,11 +589,14 @@ const handleUpdateProductSubmit = async () => {
                   </template>
                   <template v-else>
                     <ShoppingBag class="w-4 h-4 text-blue-600 stroke-[2.5]" />
-                    <span>E-Commerce Retail</span>
+                    <span>
+                      E-Commerce Retail
+                      <span v-if="ecommerceSubCategory" class="text-[#0A1128]">• {{ ecommerceSubCategory }}</span>
+                    </span>
                   </template>
                 </div>
               </div>
-              
+
               <div class="space-y-1.5">
                 <label class="text-[11px] font-black uppercase text-gray-500 tracking-wide flex items-center justify-between">
                   <span>{{ isRestaurant ? 'Menu Type Category *' : 'Niche Storefront Subcategory' }}</span>
@@ -706,10 +734,10 @@ const handleUpdateProductSubmit = async () => {
               <span class="text-[10px] font-black uppercase tracking-widest text-gray-400 block pl-0.5">Generated Variant SKU Target Allocations Matrix</span>
               <div class="border border-gray-100 rounded-2xl overflow-hidden divide-y divide-gray-100 shadow-sm bg-white">
                 <div v-for="(sku, sIdx) in skuItems" :key="sIdx" class="p-5 flex flex-col space-y-4 text-xs font-semibold hover:bg-gray-50/30 transition">
-                  
+
                   <div class="flex flex-wrap items-center justify-between border-b border-gray-100/60 pb-2.5 gap-2">
                     <span class="bg-[#0A1128] text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase font-mono tracking-wider shadow-2xs">{{ sku.value_names.join(' / ') }}</span>
-                    
+
                     <div class="flex items-center space-x-2">
                       <span class="text-[10px] font-black text-gray-400 uppercase tracking-wider flex items-center gap-1"><Flame class="w-3 h-3 text-rose-500" /> Variant Discount Drop</span>
                       <button @click="sku.bonanza_mode = !sku.bonanza_mode" type="button" class="focus:outline-none cursor-pointer transition active:scale-95 border-0 bg-transparent">

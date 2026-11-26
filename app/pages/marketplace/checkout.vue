@@ -566,7 +566,7 @@ const triggerErrorPopup = (t: string, d: string) => { errorMessageTitle.value = 
               <p class="text-xs text-gray-600 font-semibold leading-relaxed">{{ errorMessageDetail }}</p>
             </div>
             <button @click="errorMessageTitle = null" class="w-full bg-[#0A1128] text-white text-xs font-black py-3.5 rounded-xl cursor-pointer border-0 outline-none">
-              Acknowledge Notice
+              Accept Notice
             </button>
           </div>
         </div>

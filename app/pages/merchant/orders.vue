@@ -293,7 +293,7 @@ const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('en
             >
               <Loader2 v-if="processingOrdersMap[order.order_id]" class="w-3.5 h-3.5 animate-spin" />
               <CheckCircle v-else class="w-3.5 h-3.5" />
-              <span>{{ processingOrdersMap[order.order_id] ? 'Saving...' : 'Acknowledge' }}</span>
+              <span>{{ processingOrdersMap[order.order_id] ? 'Saving...' : 'ACCEPT ORDER' }}</span>
             </button>
           </div>
         </div>
@@ -404,7 +404,7 @@ const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('en
                 </h4>
                 <div class="bg-emerald-50/25 border border-emerald-100 rounded-2xl p-4 space-y-2.5">
                   <div class="flex justify-between items-center pt-1">
-                    <span class="text-xs font-black text-emerald-800 uppercase">Merchant Basket Subtotal:</span>
+                    <span class="text-xs font-black text-emerald-800 uppercase">Subtotal:</span>
                     <span class="text-base font-black text-emerald-700 font-mono">{{ formatMoney(computedSubtotal) }}</span>
                   </div>
                 </div>
@@ -414,7 +414,7 @@ const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('en
 
             <div class="p-5 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-2.5">
               <button @click="activeSelectedModalOrder = null" class="bg-white border border-gray-200 hover:border-gray-300 text-[#0A1128] font-black text-xs py-2.5 px-5 rounded-xl shadow-sm transition cursor-pointer border-0 outline-none">
-                Dismiss Manifest View
+                Dismiss
               </button>
               
               <button 
@@ -424,7 +424,7 @@ const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('en
                 class="bg-[#0A1128] hover:bg-[#84cc16] text-white hover:text-[#0A1128] text-xs font-black px-5 py-2.5 rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer border-0 outline-none"
               >
                 <Loader2 v-if="processingOrdersMap[activeSelectedModalOrder.order_id]" class="w-3.5 h-3.5 animate-spin" />
-                <span>{{ processingOrdersMap[activeSelectedModalOrder.order_id] ? 'Processing...' : 'Acknowledge Order Now' }}</span>
+                <span>{{ processingOrdersMap[activeSelectedModalOrder.order_id] ? 'Processing...' : 'Accept Order Now' }}</span>
               </button>
             </div>
           </div>
