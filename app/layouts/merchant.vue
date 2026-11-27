@@ -484,7 +484,7 @@ const handleLogout = async (): Promise<void> => {
                 class="bg-[#0A1128] hover:bg-opacity-95 disabled:bg-gray-200 disabled:text-gray-400 text-white font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-sm transition transform active:scale-95 cursor-pointer border-0 outline-none flex items-center gap-1.5"
               >
                 <Loader2 v-if="processingOrdersMap[notif.order_id]" class="w-3.5 h-3.5 animate-spin" />
-                <span>{{ processingOrdersMap[notif.order_id] ? 'Saving...' : 'Acknowledge Order' }}</span>
+                <span>{{ processingOrdersMap[notif.order_id] ? 'Saving...' : 'ACCEPT ORDER' }}</span>
               </button>
             </div>
           </div>
@@ -580,7 +580,7 @@ const handleLogout = async (): Promise<void> => {
               <Bell class="w-4 h-4" />
             </div>
             <div class="flex-1 min-w-0">
-              <span class="text-[9px] font-black tracking-wider uppercase text-gray-400 block">Fleet Routing Update</span>
+              <span class="text-[9px] font-black tracking-wider uppercase text-gray-400 block">Rider Routing Update</span>
               <p class="text-xs text-gray-700 font-semibold mt-0.5 leading-relaxed" v-html="safeNotificationHtml(notif.message)"></p>
             </div>
             <button @click="removeNotification(notif.id)" class="text-gray-300 hover:text-gray-500 bg-transparent border-0 cursor-pointer outline-none self-start">

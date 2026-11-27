@@ -120,13 +120,24 @@ const errorMessageDetail = ref<string | null>(null)
 
 // Quote & Wallet data tracking
 const deliveryQuoteData = ref({
-  delivery_fee: 1000.00,
+  delivery_fee: 0.00,
   wallet_balance: 0.00,
   wallet_applied_to_delivery: 0.00,
-  net_delivery_fee: 1000.00
+  net_delivery_fee: 0.00
 })
 
-const estimatedFinalTotal = computed(() => cartTotal.value + deliveryQuoteData.value.net_delivery_fee)
+const deliveryFeeLabel = computed(() => {
+  if (needsArea.value) return 'Delivery Fee (Area Required)'
+  if (deliveredBy.value === 'vendor') return 'Delivery Fee (Vendor Self-Delivery)'
+  if (deliveredBy.value === 'platform') return 'Delivery Fee (Aika Riders)'
+  return 'Delivery Fee'
+})
+
+const estimatedFinalTotal = computed(() => {
+  if (needsArea.value) return cartTotal.value
+  return cartTotal.value + Number(deliveryQuoteData.value.net_delivery_fee || 0)
+})
+
 const backendHost = `${apiBase}`
 
 const getHubCoordinates = (areaIdentifier: string | number | null | undefined) => {
@@ -205,7 +216,7 @@ onMounted(async () => {
 
     syncPendingSessionState()
 
-    // 3. Fetch initial distance-based delivery quote & wallet balance
+    // 3. Fetch initial delivery quote & wallet balance
     await fetchDeliveryQuote()
   } catch (e) {
     console.error('Initialization load failed', e)
@@ -274,6 +285,19 @@ const syncSelectedHubGps = () => {
   }
 }
 
+const normalizeDeliveredBy = (res: any): 'platform' | 'vendor' | null => {
+  const raw = String(
+    res?.delivered_by ?? res?.fulfillment_mode ?? res?.fulfillment_type ?? ''
+  ).trim().toLowerCase()
+  if (['vendor', 'self', 'vendor_self_delivery', 'self_delivery'].includes(raw)) {
+    return 'vendor'
+  }
+  if (['platform', 'platform_dispatch', 'platform_logistics', 'rider', 'aika'].includes(raw)) {
+    return 'platform'
+  }
+  return null
+}
+
 const fetchDeliveryQuote = async () => {
   // Coordinates are optional: vendor-delivered orders are priced by area, not distance.
   if (!primaryVendorId.value) return
@@ -293,14 +317,24 @@ const fetchDeliveryQuote = async () => {
       }
     })
     needsArea.value = res?.status === 'needs_area'
-    deliveredBy.value = res?.delivered_by ?? null
+    deliveredBy.value = normalizeDeliveredBy(res)
     quoteNotice.value = res?.message || ''
+
     if (res && !needsArea.value) {
+      const rawFee = deliveredBy.value === 'vendor'
+        ? (res.self_delivery_fee ?? res.delivery_fee ?? 0)
+        : (res.delivery_fee ?? 0)
+      const grossFee = Math.max(0, Number(rawFee) || 0)
+      const walletApplied = Math.max(0, Number(res.wallet_applied_to_delivery) || 0)
+      const netFee = res.net_delivery_fee !== undefined && res.net_delivery_fee !== null
+        ? Math.max(0, Number(res.net_delivery_fee) || 0)
+        : Math.max(0, grossFee - walletApplied)
+
       deliveryQuoteData.value = {
-        delivery_fee: res.delivery_fee ?? 1000.00,
-        wallet_balance: res.wallet_balance ?? 0.00,
-        wallet_applied_to_delivery: res.wallet_applied_to_delivery ?? 0.00,
-        net_delivery_fee: res.net_delivery_fee ?? (res.delivery_fee ?? 1000.00)
+        delivery_fee: grossFee,
+        wallet_balance: Number(res.wallet_balance ?? 0),
+        wallet_applied_to_delivery: walletApplied,
+        net_delivery_fee: netFee
       }
     }
   } catch (e: any) {
@@ -513,22 +547,32 @@ const triggerErrorPopup = (t: string, d: string) => { errorMessageTitle.value = 
             <div v-else-if="deliveredBy === 'vendor'" class="bg-sky-50 border border-sky-200 rounded-xl p-3 text-xs text-sky-800 font-bold">
               {{ quoteNotice || 'The seller will deliver this order themselves.' }}
             </div>
+            <div v-else-if="deliveredBy === 'platform'" class="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900 font-bold">
+              {{ quoteNotice || 'Delivered by Aika platform riders.' }}
+            </div>
 
-            <div class="flex justify-between items-center">
-              <span>Delivery Fee</span>
-              <div class="flex items-center gap-2 font-mono">
+            <div class="flex justify-between items-center gap-2">
+              <span class="text-xs sm:text-sm">{{ deliveryFeeLabel }}</span>
+              <span v-if="needsArea" class="font-mono text-gray-400">—</span>
+              <div v-else class="flex items-center gap-2 font-mono">
                 <span
                   v-if="deliveryQuoteData.delivery_fee > deliveryQuoteData.net_delivery_fee"
                   class="text-xs text-gray-400 line-through"
                 >
                   {{ formatMoney(deliveryQuoteData.delivery_fee) }}
                 </span>
-                <span class="text-[#0A1128]">{{ formatMoney(deliveryQuoteData.net_delivery_fee) }}</span>
+                <span
+                  v-if="deliveryQuoteData.net_delivery_fee === 0"
+                  class="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-emerald-100 text-emerald-800"
+                >
+                  Free
+                </span>
+                <span v-else class="text-[#0A1128]">{{ formatMoney(deliveryQuoteData.net_delivery_fee) }}</span>
               </div>
             </div>
 
             <!-- Wallet / Referral Discount Banner (if active) -->
-            <div v-if="deliveryQuoteData.wallet_applied_to_delivery > 0" class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between text-xs text-emerald-800">
+            <div v-if="!needsArea && deliveryQuoteData.wallet_applied_to_delivery > 0" class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between text-xs text-emerald-800">
               <span class="flex items-center gap-1.5 font-bold">
                 <Wallet class="w-3.5 h-3.5 text-emerald-600" /> Wallet/Referral Credit applied:
               </span>
@@ -543,11 +587,11 @@ const triggerErrorPopup = (t: string, d: string) => { errorMessageTitle.value = 
 
           <button
             @click="handleFinalCheckoutSubmit"
-            :disabled="isSubmittingOrder"
+            :disabled="isSubmittingOrder || needsArea"
             class="w-full bg-[#0A1128] text-white py-4 rounded-2xl font-black text-sm hover:bg-[#111827] transition shadow-md flex items-center justify-center gap-2 cursor-pointer border-0 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Loader2 v-if="isSubmittingOrder" class="w-4 h-4 animate-spin text-white" />
-            <span>{{ isSubmittingOrder ? 'Processing...' : 'Pay Securely Now' }}</span>
+            <span>{{ isSubmittingOrder ? 'Processing...' : needsArea ? 'Select Delivery Area First' : 'Pay Securely Now' }}</span>
           </button>
         </div>
 

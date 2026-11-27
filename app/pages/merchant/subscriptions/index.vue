@@ -1,8 +1,8 @@
 <!-- pages/merchant/billing/index.vue -->
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useCookie, useRuntimeConfig } from '#app'
-import { Layers, Check, CreditCard, ShieldCheck, AlertCircle, CheckCircle2, ArrowRight, Loader2, RefreshCw } from '@lucide/vue'
+import { Layers, Check, CreditCard, ShieldCheck, AlertCircle, CheckCircle2, ArrowRight, Loader2, RefreshCw, ShoppingCart, Package } from '@lucide/vue'
 
 definePageMeta({
   layout: 'merchant',
@@ -14,7 +14,7 @@ const apiBase = config.public.apiBase
 
 const authToken = useCookie('auth_token')
 
-const loadingPlanId = ref(null)
+const loadingPlanId = ref<number | null>(null)
 const errorMessage = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
 
@@ -22,6 +22,113 @@ const successMessage = ref<string | null>(null)
 const dashboardData = ref<any>(null)
 const pending = ref<boolean>(true)
 const error = ref<any>(null)
+
+// Selected billing interval key per grouped plan tier
+const selectedIntervalByTier = ref<Record<string, string>>({})
+
+const INTERVAL_ORDER = ['monthly', 'quarterly', 'semi_annual', 'annual']
+
+const INTERVAL_META: Record<string, { label: string; tabLabel: string; suffix: string; days: number }> = {
+  monthly: { label: 'Monthly (30 Days)', tabLabel: 'Monthly', suffix: '/ month', days: 30 },
+  quarterly: { label: 'Quarterly (90 Days)', tabLabel: 'Quarterly', suffix: '/ quarter', days: 90 },
+  semi_annual: { label: '6 Months (180 Days)', tabLabel: '6 Months', suffix: '/ 6 months', days: 180 },
+  annual: { label: 'Annually (365 Days)', tabLabel: 'Annual', suffix: '/ year', days: 365 }
+}
+
+const getIntervalMeta = (plan: any) => {
+  const key = String(plan?.billing_interval || 'monthly').trim().toLowerCase()
+  const meta = INTERVAL_META[key] ?? INTERVAL_META.monthly!
+  return {
+    key,
+    label: meta.label,
+    tabLabel: meta.tabLabel,
+    suffix: meta.suffix,
+    days: Number(plan?.duration_days) || meta.days
+  }
+}
+
+// Derive a shared group key so e.g. "basic-monthly" and "basic-quarterly" merge into one card
+const getTierGroupKey = (plan: any): string => {
+  const rawSlug = String(plan?.slug || '').trim().toLowerCase()
+  if (rawSlug) {
+    const stripped = rawSlug.replace(/-(monthly|quarterly|semi_annual|semi-annual|annual|yearly)(-\d+)?$/, '')
+    if (stripped) return stripped
+  }
+  return String(plan?.name || 'tier').trim().toLowerCase().replace(/\s+/g, '-')
+}
+
+const groupedPlanCards = computed(() => {
+  const plans = Array.isArray(dashboardData.value?.platform_plans)
+    ? dashboardData.value.platform_plans
+    : []
+
+  const groupsMap = new Map<string, { tierKey: string; name: string; description: string; variants: any[] }>()
+
+  for (const plan of plans) {
+    const tierKey = getTierGroupKey(plan)
+    if (!groupsMap.has(tierKey)) {
+      groupsMap.set(tierKey, {
+        tierKey,
+        name: plan.name || 'Subscription Tier',
+        description: plan.description || 'Enterprise grade infrastructure tier.',
+        variants: []
+      })
+    }
+    const group = groupsMap.get(tierKey)!
+    group.variants.push(plan)
+    if (!group.description && plan.description) {
+      group.description = plan.description
+    }
+  }
+
+  return Array.from(groupsMap.values()).map(group => {
+    const sortedVariants = [...group.variants].sort((a, b) => {
+      const aKey = String(a?.billing_interval || 'monthly').toLowerCase()
+      const bKey = String(b?.billing_interval || 'monthly').toLowerCase()
+      const aIdx = INTERVAL_ORDER.indexOf(aKey)
+      const bIdx = INTERVAL_ORDER.indexOf(bKey)
+      const rankA = aIdx === -1 ? INTERVAL_ORDER.length : aIdx
+      const rankB = bIdx === -1 ? INTERVAL_ORDER.length : bIdx
+      if (rankA !== rankB) return rankA - rankB
+      return Number(a?.price || 0) - Number(b?.price || 0)
+    })
+
+    const activeIntervalKey = selectedIntervalByTier.value[group.tierKey]
+    const activePlan =
+      sortedVariants.find(v => String(v?.billing_interval || 'monthly').toLowerCase() === activeIntervalKey)
+      ?? sortedVariants[0]!
+
+    const activeIntervalMeta = getIntervalMeta(activePlan)
+
+    return {
+      tierKey: group.tierKey,
+      name: group.name,
+      description: group.description,
+      variants: sortedVariants,
+      activePlan,
+      activeIntervalMeta
+    }
+  })
+})
+
+watch(
+  () => dashboardData.value?.platform_plans,
+  () => {
+    const nextSelections: Record<string, string> = { ...selectedIntervalByTier.value }
+    for (const card of groupedPlanCards.value) {
+      const currentSelected = nextSelections[card.tierKey]
+      const hasMatch = card.variants.some(
+        v => String(v?.billing_interval || 'monthly').toLowerCase() === currentSelected
+      )
+      if (!currentSelected || !hasMatch) {
+        const defaultPlan = card.variants[0]
+        nextSelections[card.tierKey] = String(defaultPlan?.billing_interval || 'monthly').toLowerCase()
+      }
+    }
+    selectedIntervalByTier.value = nextSelections
+  },
+  { immediate: true }
+)
 
 // Fetch subscription dashboard state from Django Ninja API on mount with explicit headers
 const fetchBillingDashboard = async () => {
@@ -49,8 +156,8 @@ onMounted(() => {
   fetchBillingDashboard()
 })
 
-const handleSubscribe = async (planId: number, planPrice: number) => {
-  loadingPlanId.value = planId as any
+const handleSubscribe = async (planId: number) => {
+  loadingPlanId.value = planId
   errorMessage.value = null
   successMessage.value = null
 
@@ -81,7 +188,7 @@ const handleSubscribe = async (planId: number, planPrice: number) => {
 <template>
   <div class="min-h-screen bg-gray-50/50 p-6 lg:p-10 text-left">
     <div class="max-w-7xl mx-auto space-y-10">
-      
+
       <!-- Header Section -->
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div class="space-y-1">
@@ -89,10 +196,10 @@ const handleSubscribe = async (planId: number, planPrice: number) => {
           <p class="text-xs text-gray-500 font-medium">Manage your active corporate licensing tiers and automated OPay settlement gateways.</p>
         </div>
 
-        <button 
-          @click="fetchBillingDashboard" 
+        <button
+          @click="fetchBillingDashboard"
           :disabled="pending"
-          type="button" 
+          type="button"
           class="bg-white border border-gray-200 shadow-2xs text-gray-700 text-xs font-bold px-4 py-2.5 rounded-xl transition flex items-center space-x-2 hover:bg-gray-50 active:scale-95 disabled:opacity-50 cursor-pointer outline-none shrink-0"
         >
           <RefreshCw :class="{ 'animate-spin': pending }" class="w-3.5 h-3.5" />
@@ -137,6 +244,12 @@ const handleSubscribe = async (planId: number, planPrice: number) => {
           </div>
           <h2 class="text-xl font-black text-[#0A1128] tracking-tight">
             Current Tier: {{ dashboardData?.current_plan?.name || 'No Active Plan' }}
+            <span
+              v-if="dashboardData?.current_plan?.billing_interval"
+              class="ml-2 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 text-slate-700 align-middle"
+            >
+              {{ getIntervalMeta(dashboardData.current_plan).tabLabel }}
+            </span>
           </h2>
           <p class="text-xs text-gray-500 font-medium">
             {{ dashboardData?.next_billing_date ? `Access valid through: ${new Date(dashboardData.next_billing_date).toLocaleDateString()}` : 'Select a pricing tier below to provision your store features.' }}
@@ -153,17 +266,17 @@ const handleSubscribe = async (planId: number, planPrice: number) => {
         </div>
       </div>
 
-      <!-- Subscription Pricing Plans Grid -->
-      <div v-if="dashboardData?.platform_plans" class="space-y-6">
+      <!-- Subscription Pricing Plans Grid (Grouped by Tier with Billing Cycle Toggle) -->
+      <div v-if="groupedPlanCards.length" class="space-y-6">
         <div class="space-y-1">
           <h3 class="text-lg font-black text-[#0A1128] tracking-tight">Available Subscription Tiers</h3>
-          <p class="text-xs text-gray-500 font-medium">Upgrade or renew your store operating license instantly using OPay.</p>
+          <p class="text-xs text-gray-500 font-medium">Toggle billing cycles on each tier and subscribe instantly using OPay.</p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div 
-            v-for="plan in dashboardData?.platform_plans" 
-            :key="plan.id"
+          <div
+            v-for="card in groupedPlanCards"
+            :key="card.tierKey"
             class="bg-white border border-gray-100 rounded-3xl shadow-sm p-8 flex flex-col justify-between space-y-6 relative hover:shadow-md transition-all"
           >
             <div class="space-y-4">
@@ -172,22 +285,71 @@ const handleSubscribe = async (planId: number, planPrice: number) => {
               </div>
 
               <div>
-                <h4 class="text-lg font-black text-[#0A1128] tracking-tight">{{ plan.name }}</h4>
-                <p class="text-xs text-gray-500 font-medium mt-1">{{ plan.description || 'Enterprise grade infrastructure tier.' }}</p>
+                <h4 class="text-lg font-black text-[#0A1128] tracking-tight">{{ card.name }}</h4>
+                <p class="text-xs text-gray-500 font-medium mt-1">{{ card.description }}</p>
               </div>
 
+              <!-- Billing Interval Toggle Pills -->
+              <div v-if="card.variants.length > 1" class="p-1 bg-gray-100/90 rounded-2xl flex flex-wrap gap-1">
+                <button
+                  v-for="variant in card.variants"
+                  :key="variant.id"
+                  type="button"
+                  @click="selectedIntervalByTier[card.tierKey] = getIntervalMeta(variant).key"
+                  :class="[
+                    'flex-1 min-w-[68px] py-2 px-2.5 rounded-xl text-[11px] font-black transition-all cursor-pointer outline-none border-0',
+                    card.activePlan?.id === variant.id
+                      ? 'bg-[#0A1128] text-white shadow-xs'
+                      : 'bg-transparent text-gray-600 hover:text-[#0A1128]'
+                  ]"
+                >
+                  {{ getIntervalMeta(variant).tabLabel }}
+                </button>
+              </div>
+              <div v-else class="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-black uppercase tracking-wider">
+                {{ card.activeIntervalMeta.label }}
+              </div>
+
+              <!-- Dynamic Price for Selected Billing Interval -->
               <div class="py-3 border-y border-gray-100">
-                <div class="flex items-baseline gap-1">
-                  <span class="text-3xl font-black text-[#0A1128]">₦{{ Number(plan.price).toLocaleString() }}</span>
-                  <span class="text-xs text-gray-400 font-bold uppercase tracking-wider">/ month</span>
+                <div class="flex items-baseline gap-1.5">
+                  <span class="text-3xl font-black text-[#0A1128]">₦{{ Number(card.activePlan?.price || 0).toLocaleString() }}</span>
+                  <span class="text-xs text-gray-400 font-bold uppercase tracking-wider">{{ card.activeIntervalMeta.suffix }}</span>
+                </div>
+                <p class="text-[11px] text-gray-400 font-semibold mt-1">
+                  {{ card.activeIntervalMeta.days }} days coverage per billing cycle
+                </p>
+              </div>
+
+              <!-- Plan Quotas -->
+              <div class="grid grid-cols-2 gap-2">
+                <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                  <div class="flex items-center gap-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                    <ShoppingCart :size="11" />
+                    <span>Monthly Orders</span>
+                  </div>
+                  <p class="text-xs font-black text-[#0A1128] mt-0.5">
+                    {{ card.activePlan?.max_monthly_orders ? Number(card.activePlan.max_monthly_orders).toLocaleString() : 'Unlimited' }}
+                  </p>
+                </div>
+
+                <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                  <div class="flex items-center gap-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                    <Package :size="11" />
+                    <span>Max Products</span>
+                  </div>
+                  <p class="text-xs font-black text-[#0A1128] mt-0.5">
+                    {{ card.activePlan?.max_products ? Number(card.activePlan.max_products).toLocaleString() : 'Unlimited' }}
+                  </p>
                 </div>
               </div>
 
+              <!-- Included Capabilities -->
               <div class="space-y-2.5">
                 <p class="text-[10px] font-black uppercase tracking-wider text-gray-400">Included Capabilities</p>
                 <div class="space-y-2">
-                  <div 
-                    v-for="(feature, idx) in plan.features_raw.split(/[\n,]/).map((f: string) => f.trim()).filter(Boolean)" 
+                  <div
+                    v-for="(feature, idx) in (card.activePlan?.features_raw || '').split(/[\n,]/).map((f: string) => f.trim()).filter(Boolean)"
                     :key="idx"
                     class="flex items-start gap-2 text-xs font-semibold text-gray-700"
                   >
@@ -199,15 +361,15 @@ const handleSubscribe = async (planId: number, planPrice: number) => {
             </div>
 
             <div class="pt-4 border-t border-gray-100">
-              <button 
+              <button
                 type="button"
-                @click="handleSubscribe(plan.id, plan.price)"
-                :disabled="loadingPlanId === plan.id"
+                @click="handleSubscribe(card.activePlan.id)"
+                :disabled="!card.activePlan || loadingPlanId === card.activePlan.id"
                 class="w-full py-3.5 bg-[#0A1128] text-white text-xs font-black uppercase tracking-wider rounded-2xl shadow-md hover:bg-opacity-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer outline-none border-0"
               >
-                <Loader2 v-if="loadingPlanId === plan.id" class="w-4 h-4 animate-spin text-white" />
+                <Loader2 v-if="loadingPlanId === card.activePlan?.id" class="w-4 h-4 animate-spin text-white" />
                 <span v-else class="flex items-center gap-2">
-                  {{ plan.price <= 0 ? 'Activate Free Tier' : 'Proceed with OPay' }}
+                  {{ Number(card.activePlan?.price || 0) <= 0 ? 'Activate Free Tier' : `Proceed with OPay · ${card.activeIntervalMeta.tabLabel}` }}
                   <ArrowRight :size="14" />
                 </span>
               </button>
@@ -238,11 +400,19 @@ const handleSubscribe = async (planId: number, planPrice: number) => {
               <tbody class="divide-y divide-gray-100 text-xs font-semibold">
                 <tr v-for="inv in dashboardData.invoices" :key="inv.id" class="hover:bg-gray-50/50 transition-colors">
                   <td class="py-4 px-6 font-mono text-gray-600">{{ inv.reference_id }}</td>
-                  <td class="py-4 px-6 text-[#0A1128] font-bold">{{ inv.plan.name }}</td>
+                  <td class="py-4 px-6 text-[#0A1128] font-bold">
+                    {{ inv.plan?.name }}
+                    <span
+                      v-if="inv.plan?.billing_interval"
+                      class="ml-1.5 px-2 py-0.5 text-[10px] font-black uppercase rounded bg-slate-100 text-slate-600"
+                    >
+                      {{ getIntervalMeta(inv.plan).tabLabel }}
+                    </span>
+                  </td>
                   <td class="py-4 px-6 text-[#0A1128] font-black">₦{{ Number(inv.amount).toLocaleString() }}</td>
                   <td class="py-4 px-6 text-gray-500">{{ new Date(inv.payment_date).toLocaleString() }}</td>
                   <td class="py-4 px-6 text-right">
-                    <span 
+                    <span
                       :class="[
                         'px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg',
                         inv.status === 'successful' ? 'bg-emerald-50 text-emerald-700' : inv.status === 'pending' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'

@@ -1,20 +1,35 @@
 <!-- pages/admin/subscriptions/vendors.vue -->
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { useRouter, useCookie, useRuntimeConfig, navigateTo } from '#app'
-import { Users, ArrowLeft, RefreshCw, Loader2, AlertCircle, CheckCircle2, ShieldAlert, Search, Layers, Clock, Award } from '@lucide/vue'
+import { useCookie, useRuntimeConfig, navigateTo } from '#app'
+import { Users, ArrowLeft, RefreshCw, Loader2, AlertCircle, CheckCircle2, ShieldAlert, Search, Clock, Award, Calendar } from '@lucide/vue'
 
 definePageMeta({ layout: 'admin', middleware: 'auth' })
 
 const config = useRuntimeConfig()
 const apiBase = config.public.apiBase
 const authToken = useCookie('auth_token')
-const router = useRouter()
 
 const vendorSubs = ref<any[]>([])
 const pending = ref<boolean>(true)
 const error = ref<any>(null)
 const searchQuery = ref<string>('')
+
+const INTERVAL_LABELS: Record<string, { label: string; days: number }> = {
+  monthly: { label: 'Monthly', days: 30 },
+  quarterly: { label: 'Quarterly', days: 90 },
+  semi_annual: { label: '6 Months', days: 180 },
+  annual: { label: 'Annually', days: 365 }
+}
+
+const formatBillingCycle = (sub: any): string | null => {
+  if (!sub?.plan_name && !sub?.billing_interval) return null
+  const key = String(sub?.billing_interval || 'monthly').trim().toLowerCase()
+  const meta = INTERVAL_LABELS[key] ?? INTERVAL_LABELS.monthly!
+  const days = Number(sub?.duration_days) || meta.days
+  return `${meta.label} · ${days}d`
+}
+
 
 // Fetch vendor subscriptions audit list from Django Ninja API
 const fetchVendorSubscriptions = async () => {
@@ -51,11 +66,16 @@ const expiredCount = computed(() => totalVendorsCount.value - activeCount.value)
 const filteredSubs = computed(() => {
   if (!searchQuery.value) return vendorSubs.value
   const q = searchQuery.value.toLowerCase()
-  return vendorSubs.value.filter(sub => 
-    sub.vendor_name?.toLowerCase().includes(q) || 
-    sub.vendor_email?.toLowerCase().includes(q) ||
-    sub.plan_name?.toLowerCase().includes(q)
-  )
+  return vendorSubs.value.filter(sub => {
+    const cycleLabel = formatBillingCycle(sub)?.toLowerCase() || ''
+    return (
+      sub.vendor_name?.toLowerCase().includes(q) ||
+      sub.vendor_email?.toLowerCase().includes(q) ||
+      sub.plan_name?.toLowerCase().includes(q) ||
+      sub.billing_interval?.toLowerCase().includes(q) ||
+      cycleLabel.includes(q)
+    )
+  })
 })
 
 const navigateBack = () => {
@@ -66,11 +86,11 @@ const navigateBack = () => {
 <template>
   <div class="min-h-screen bg-gray-50/50 p-6 lg:p-10 text-left">
     <div class="max-w-7xl mx-auto space-y-8">
-      
+
       <!-- Back Button & Header -->
       <div class="space-y-4">
-        <button 
-          @click="navigateBack" 
+        <button
+          @click="navigateBack"
           class="inline-flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-indigo-600 transition-colors bg-white border border-gray-200 px-4 py-2.5 rounded-xl shadow-2xs cursor-pointer outline-none"
         >
           <ArrowLeft :size="16" />
@@ -80,14 +100,14 @@ const navigateBack = () => {
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 class="text-2xl font-black text-gray-900 tracking-tight">Vendor Subscriptions Audit</h1>
-            <p class="text-xs text-gray-500 font-medium mt-0.5">Monitor active merchant memberships, subscription expiry dates, and billing access control.</p>
+            <p class="text-xs text-gray-500 font-medium mt-0.5">Monitor active merchant memberships, billing cycles, subscription expiry dates, and billing access control.</p>
           </div>
 
           <div class="flex items-center gap-3">
-            <button 
-              @click="fetchVendorSubscriptions" 
+            <button
+              @click="fetchVendorSubscriptions"
               :disabled="pending"
-              type="button" 
+              type="button"
               class="bg-white border border-gray-200 shadow-2xs text-gray-700 text-xs font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-2 hover:bg-gray-50 active:scale-95 disabled:opacity-50 cursor-pointer outline-none shrink-0"
               title="Refresh Audit Ledger"
             >
@@ -136,10 +156,10 @@ const navigateBack = () => {
         <div class="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 shrink-0">
           <Search :size="18" />
         </div>
-        <input 
-          v-model="searchQuery" 
-          type="text" 
-          placeholder="Filter by vendor name, email address, or plan tier..." 
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Filter by vendor name, email address, plan tier, or billing cycle..."
           class="w-full text-xs font-semibold text-gray-800 outline-none bg-transparent placeholder:text-gray-400"
         />
         <span v-if="searchQuery" @click="searchQuery = ''" class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg cursor-pointer hover:bg-indigo-100 transition mr-2">Clear</span>
@@ -178,6 +198,7 @@ const navigateBack = () => {
               <tr class="bg-gray-50/75 text-gray-400 uppercase text-[10px] font-black tracking-wider border-b border-gray-100">
                 <th class="py-4 px-6">Merchant Entity</th>
                 <th class="py-4 px-6">Assigned Plan Tier</th>
+                <th class="py-4 px-6">Billing Cycle</th>
                 <th class="py-4 px-6">Plan Price</th>
                 <th class="py-4 px-6">Expiration Timestamp</th>
                 <th class="py-4 px-6">Access Status</th>
@@ -202,8 +223,18 @@ const navigateBack = () => {
                   </span>
                   <span v-else class="text-gray-400 text-[11px] italic bg-gray-100 px-2.5 py-1 rounded-md">No Plan Assigned</span>
                 </td>
+               <td class="py-4 px-6">
+                  <span
+                    v-if="formatBillingCycle(sub)"
+                    class="bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1"
+                  >
+                    <Calendar :size="11" />
+                    {{ formatBillingCycle(sub) }}
+                  </span>
+                  <span v-else class="text-gray-400 text-[11px]">—</span>
+                </td>
                 <td class="py-4 px-6 font-mono font-black text-gray-900 text-sm">
-                  {{ sub.plan_price !== null ? `₦${sub.plan_price.toLocaleString()}` : '—' }}
+                  {{ sub.plan_price !== null && sub.plan_price !== undefined ? `₦${Number(sub.plan_price).toLocaleString()}` : '—' }}
                 </td>
                 <td class="py-4 px-6 text-gray-500 font-mono text-[11px]">
                   <div class="flex items-center gap-1.5">
@@ -220,7 +251,7 @@ const navigateBack = () => {
                 </td>
               </tr>
               <tr v-if="filteredSubs.length === 0 && !pending">
-                <td colspan="5" class="py-20 text-center text-gray-400 font-bold uppercase tracking-wider space-y-2">
+                <td colspan="6" class="py-20 text-center text-gray-400 font-bold uppercase tracking-wider space-y-2">
                   <p>No matching vendor subscriptions found.</p>
                   <p class="text-[10px] text-gray-300">Try adjusting your search criteria.</p>
                 </td>

@@ -2,13 +2,13 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useCookie, useRuntimeConfig } from '#app'
-import { 
-  Store, 
-  Layers, 
-  Phone, 
-  Clock, 
-  UploadCloud, 
-  Save, 
+import {
+  Store,
+  Layers,
+  Phone,
+  Clock,
+  UploadCloud,
+  Save,
   Loader2,
   X,
   AlertCircle,
@@ -61,22 +61,33 @@ const form = ref({
   closing_time: '22:00',
   base_location_id: '' as string | number,
   street_address: '',
-  
+
   // Geospatial Coordinates
   latitude: null as number | null,
   longitude: null as number | null,
-  
+
   // Custom Extended Retail & Storefront Specs
   tagline: '',
   brand_bio: '',
   instagram_handle: '',
   twitter_handle: '',
-  
-  // Fulfillment Policy Choice
-  fulfillment_policy: 'platform'
+
+  // VendorShippingPreference fields
+  fulfillment_type: 'platform' as 'platform' | 'hybrid' | 'self',
+  allow_nationwide: false,
+  self_delivery_fee: 0
 })
 
 const isEcommerce = computed(() => form.value.business_type === 'e_commerce')
+const isRestaurant = computed(() => String(form.value.business_type || '').toLowerCase() === 'restaurant')
+const showsSelfDeliveryFee = computed(() => !isRestaurant.value && (form.value.fulfillment_type === 'self' || form.value.fulfillment_type === 'hybrid'))
+
+watch(isRestaurant, (restaurant) => {
+  if (restaurant) {
+    form.value.fulfillment_type = 'platform'
+    form.value.self_delivery_fee = 0
+  }
+})
 
 // Helper to derive coordinates from a CoverageArea object without mutating it
 const getHubCoordinates = (hub: any) => {
@@ -102,6 +113,33 @@ const fetchLocations = async () => {
     availableLocations.value = res?.data || res || []
   } catch (err) {
     console.error("Failed to load locations", err)
+  }
+}
+
+// Fetch saved shipping preference from dedicated endpoint
+const fetchShippingPreference = async () => {
+  try {
+    const res: any = await $fetch(`${apiBase}/api/v1/merchant/shipping-preference`, {
+      method: 'GET',
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+        ...(authToken.value ? { Authorization: `Bearer ${authToken.value}` } : {})
+      }
+    })
+    const pref = res?.data || res
+    if (pref) {
+      if (pref.fulfillment_type) {
+        form.value.fulfillment_type = pref.fulfillment_type
+      }
+      if (typeof pref.allow_nationwide === 'boolean') {
+        form.value.allow_nationwide = pref.allow_nationwide
+      }
+      if (pref.self_delivery_fee !== undefined && pref.self_delivery_fee !== null) {
+        form.value.self_delivery_fee = Number(pref.self_delivery_fee) || 0
+      }
+    }
+  } catch (err) {
+    console.warn("Could not hydrate shipping preference", err)
   }
 }
 
@@ -149,16 +187,20 @@ onMounted(async () => {
     // Fetch locations first so the dropdown arrays are populated
     await fetchLocations()
 
-    const profile: any = await $fetch(`${apiBase}/api/v1/merchant/profile`, {
-      headers: { 'ngrok-skip-browser-warning': 'true', Authorization: `Bearer ${authToken.value}` }
-    })
+    const [profileRes, _] = await Promise.all([
+      $fetch(`${apiBase}/api/v1/merchant/profile`, {
+        headers: { 'ngrok-skip-browser-warning': 'true', Authorization: `Bearer ${authToken.value}` }
+      }),
+      fetchShippingPreference()
+    ])
 
+    const profile: any = profileRes
     if (profile) {
       form.value.company_name = profile.company_name || ''
       form.value.business_type = profile.business_type || ''
       form.value.ecommerce_sub_category = profile.ecommerce_sub_category || ''
       form.value.phone_number = profile.phone_number || ''
-      
+
       // Assign the numeric base location ID returned by the API
       form.value.base_location_id = profile.base_location || ''
       form.value.street_address = profile.street_address || ''
@@ -189,9 +231,14 @@ onMounted(async () => {
       form.value.brand_bio = profile.brand_bio || ''
       form.value.instagram_handle = profile.instagram_handle || ''
       form.value.twitter_handle = profile.twitter_handle || ''
-      
-      if (profile.fulfillment_policy) {
-        form.value.fulfillment_policy = profile.fulfillment_policy
+
+      if (profile.fulfillment_policy && !form.value.fulfillment_type) {
+        form.value.fulfillment_type = profile.fulfillment_policy
+      }
+
+      if (isRestaurant.value) {
+        form.value.fulfillment_type = 'platform'
+        form.value.self_delivery_fee = 0
       }
 
       if (profile.hero_image) {
@@ -262,13 +309,16 @@ const clearSelectedBanner = () => {
 }
 
 // =========================================================================
-// INTERCEPT SUBMIT AND TRANSMIT FORMDATA PAYLOAD
+// INTERCEPT SUBMIT AND TRANSMIT FORMDATA + SHIPPING PREFERENCE PAYLOAD
 // =========================================================================
 const handleProfileSubmission = async () => {
   if (!form.value.base_location_id) {
     serverError.value = "Please select your state and operational base hub area."
     return
   }
+
+  const effectiveFulfillmentType = isRestaurant.value ? 'platform' : form.value.fulfillment_type
+  const effectiveSelfDeliveryFee = Math.max(0, Number(form.value.self_delivery_fee) || 0)
 
   isSubmitting.value = true
   serverError.value = null
@@ -281,20 +331,20 @@ const handleProfileSubmission = async () => {
       form.value.longitude = hubCoords.longitude
     }
   }
-  
+
   const formData = new FormData()
-  
+
   formData.append('company_name', form.value.company_name.trim())
   formData.append('business_type', form.value.business_type)
   formData.append('phone_number', form.value.phone_number.trim())
   formData.append('opening_time', form.value.opening_time)
   formData.append('closing_time', form.value.closing_time)
-  
+
   // Ensure base_location is appended with the correct key expected by the schema
   formData.append('base_location', String(form.value.base_location_id))
-  
+
   formData.append('street_address', form.value.street_address.trim())
-  
+
   if (form.value.latitude !== null) formData.append('latitude', String(form.value.latitude))
   if (form.value.longitude !== null) formData.append('longitude', String(form.value.longitude))
 
@@ -306,8 +356,11 @@ const handleProfileSubmission = async () => {
   formData.append('brand_bio', form.value.brand_bio.trim())
   formData.append('instagram_handle', form.value.instagram_handle.trim().replace('@', ''))
   formData.append('twitter_handle', form.value.twitter_handle.trim().replace('@', ''))
-  formData.append('fulfillment_policy', form.value.fulfillment_policy)
-  
+  formData.append('fulfillment_policy', effectiveFulfillmentType)
+  formData.append('fulfillment_type', effectiveFulfillmentType)
+  formData.append('allow_nationwide', String(Boolean(form.value.allow_nationwide)))
+  formData.append('self_delivery_fee', String(effectiveSelfDeliveryFee))
+
   if (heroBannerFile.value) {
     formData.append('hero_image', heroBannerFile.value)
   }
@@ -320,6 +373,20 @@ const handleProfileSubmission = async () => {
         Authorization: `Bearer ${authToken.value}`
       },
       body: formData
+    })
+
+    await $fetch(`${apiBase}/api/v1/merchant/shipping-preference`, {
+      method: 'POST',
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+        Authorization: `Bearer ${authToken.value}`,
+        'Content-Type': 'application/json'
+      },
+      body: {
+        fulfillment_type: effectiveFulfillmentType,
+        allow_nationwide: Boolean(form.value.allow_nationwide),
+        self_delivery_fee: effectiveSelfDeliveryFee
+      }
     })
 
     if (form.value.business_type) {
@@ -351,21 +418,21 @@ const handleProfileSubmission = async () => {
             <div class="space-y-1">
               <h3 class="text-sm font-black text-[#0A1128] tracking-tight uppercase">Sync Complete</h3>
               <p class="text-[11px] text-gray-400 font-semibold leading-relaxed">
-                Business profile parameters successfully synchronized! Redirecting to dashboard...
+                Business profile and shipping preferences synchronized! Redirecting to dashboard...
               </p>
             </div>
           </div>
         </div>
       </Transition>
     </Teleport>
-    
+
     <div v-if="isPageLoading" class="py-32 text-center space-y-4">
       <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-[#0A1128] mx-auto"></div>
       <p class="text-xs text-gray-400 font-bold uppercase tracking-widest">Hydrating Profile Matrices...</p>
     </div>
 
     <div v-else class="max-w-3xl mx-auto space-y-8">
-      
+
       <div>
         <span class="bg-[#D4F53C]/20 text-emerald-800 font-black px-3 py-1 rounded-md text-[10px] uppercase tracking-widest inline-block">
           Identity Registry &bull; Regional Hub Routing
@@ -375,14 +442,14 @@ const handleProfileSubmission = async () => {
       </div>
 
       <form @submit.prevent="handleProfileSubmission" class="bg-white rounded-[32px] border border-gray-100 shadow-2xl p-6 sm:p-10 space-y-6">
-        
+
         <div v-if="serverError" class="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-xs font-semibold text-rose-800 flex items-start space-x-2 animate-fade-in">
           <AlertCircle class="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
           <span>{{ serverError }}</span>
         </div>
 
         <div class="space-y-6">
-          
+
           <div class="space-y-1.5">
             <label class="text-[11px] font-black uppercase tracking-wider text-gray-400 flex items-center space-x-2">
               <Store class="w-3.5 h-3.5" />
@@ -430,30 +497,61 @@ const handleProfileSubmission = async () => {
               <Truck class="w-4 h-4 text-amber-600" />
               <span>Logistics &amp; Delivery Preference Policy</span>
             </h3>
-            
+
+            <p v-if="isRestaurant" class="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5 font-semibold">
+              Restaurants are delivered by Aika platform riders only.
+            </p>
+
             <div class="space-y-3">
               <label class="flex items-start space-x-3 p-3.5 bg-white border border-gray-200/80 rounded-xl cursor-pointer hover:border-gray-400 transition">
-                <input type="radio" v-model="form.fulfillment_policy" value="platform" class="mt-0.5 text-[#0A1128] focus:ring-[#0A1128]" />
+                <input type="radio" v-model="form.fulfillment_type" value="platform" class="mt-0.5 text-[#0A1128] focus:ring-[#0A1128]" />
                 <div class="space-y-0.5">
                   <p class="text-xs font-black text-[#0A1128]">Platform Logistics Only</p>
                   <p class="text-[11px] text-gray-400 font-medium">Aika riders handle all local dispatches and deliveries.</p>
                 </div>
               </label>
 
-              <label class="flex items-start space-x-3 p-3.5 bg-white border border-gray-200/80 rounded-xl cursor-pointer hover:border-gray-400 transition">
-                <input type="radio" v-model="form.fulfillment_policy" value="hybrid" class="mt-0.5 text-[#0A1128] focus:ring-[#0A1128]" />
-                <div class="space-y-0.5">
-                  <p class="text-xs font-black text-[#0A1128]">Hybrid (Platform Inside Region, Self Outside)</p>
-                  <p class="text-[11px] text-gray-400 font-medium">Aika riders deliver within your hub region (Akwanga, Lafia, Keffi), but you handle and ship out orders yourself when customers order from outside your region.</p>
-                </div>
-              </label>
+              <template v-if="!isRestaurant">
+                <label class="flex items-start space-x-3 p-3.5 bg-white border border-gray-200/80 rounded-xl cursor-pointer hover:border-gray-400 transition">
+                  <input type="radio" v-model="form.fulfillment_type" value="hybrid" class="mt-0.5 text-[#0A1128] focus:ring-[#0A1128]" />
+                  <div class="space-y-0.5">
+                    <p class="text-xs font-black text-[#0A1128]">Hybrid (Platform Inside Region, Self Outside)</p>
+                    <p class="text-[11px] text-gray-400 font-medium">Aika riders deliver within your hub region, and you handle deliveries outside your hub at your set fee.</p>
+                  </div>
+                </label>
 
-              <label class="flex items-start space-x-3 p-3.5 bg-white border border-gray-200/80 rounded-xl cursor-pointer hover:border-gray-400 transition">
-                <input type="radio" v-model="form.fulfillment_policy" value="self" class="mt-0.5 text-[#0A1128] focus:ring-[#0A1128]" />
-                <div class="space-y-0.5">
-                  <p class="text-xs font-black text-[#0A1128]">Vendor Self-Delivery Only</p>
-                  <p class="text-[11px] text-gray-400 font-medium">You handle all deliveries and shipping for your products personally or via external waybills.</p>
-                </div>
+                <label class="flex items-start space-x-3 p-3.5 bg-white border border-gray-200/80 rounded-xl cursor-pointer hover:border-gray-400 transition">
+                  <input type="radio" v-model="form.fulfillment_type" value="self" class="mt-0.5 text-[#0A1128] focus:ring-[#0A1128]" />
+                  <div class="space-y-0.5">
+                    <p class="text-xs font-black text-[#0A1128]">Vendor Self-Delivery Only</p>
+                    <p class="text-[11px] text-gray-400 font-medium">You handle all deliveries and shipping for your products personally or via external waybills.</p>
+                  </div>
+                </label>
+              </template>
+            </div>
+
+            <div class="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+              <div v-if="showsSelfDeliveryFee" class="space-y-1.5">
+                <label class="text-[10px] font-black uppercase tracking-wider text-gray-500 block">
+                  Self-Delivery Fee (₦) · 0 = Free
+                </label>
+                <input
+                  v-model.number="form.self_delivery_fee"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  class="w-full bg-white border border-gray-200/80 rounded-xl px-4 py-2.5 text-xs font-black text-[#0A1128] focus:outline-none"
+                />
+              </div>
+
+              <label class="flex items-center space-x-2.5 p-3 bg-white border border-gray-200/80 rounded-xl cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  v-model="form.allow_nationwide"
+                  class="w-4 h-4 text-[#0A1128] border-gray-300 rounded focus:ring-[#0A1128]"
+                />
+                <span class="text-xs font-bold text-[#0A1128]">Allow orders outside my hub</span>
               </label>
             </div>
           </div>
@@ -461,7 +559,7 @@ const handleProfileSubmission = async () => {
           <!-- Storefront Design Customization -->
           <div class="bg-[#0A1128] p-5 sm:p-6 rounded-2xl text-white border border-white/5 space-y-4">
             <h3 class="text-xs font-black uppercase tracking-wider text-[#D4F53C] border-b border-white/10 pb-2.5 flex items-center space-x-2">
-              <span>Storefront Design Customization</span>
+              <span>Store Design Customization</span>
             </h3>
 
             <div class="space-y-2">
@@ -476,7 +574,7 @@ const handleProfileSubmission = async () => {
                   {{ heroBannerFile ? heroBannerFile.name : 'Default Active' }}
                 </span>
               </div>
-              
+
               <div v-if="heroBannerPreview" class="w-full h-24 rounded-xl overflow-hidden border border-white/10 relative mt-2 animate-fade-in">
                 <img :src="heroBannerPreview" class="w-full h-full object-cover" alt="Banner canvas" />
                 <button @click="clearSelectedBanner" type="button" class="absolute top-2 right-2 p-1 bg-black/60 text-white rounded-md hover:bg-black transition"><X class="w-3.5 h-3.5" /></button>
@@ -514,9 +612,9 @@ const handleProfileSubmission = async () => {
           <div class="bg-gray-50 border border-gray-100 p-5 sm:p-6 rounded-2xl space-y-4">
             <h3 class="text-xs font-black uppercase tracking-wider text-[#0A1128] border-b border-gray-200/60 pb-2.5 flex items-center space-x-2">
               <Clock class="w-4 h-4 text-emerald-700" />
-              <span>Operational Hours Scheduling Window</span>
+              <span>Operational Hours</span>
             </h3>
-            
+
             <div class="grid grid-cols-2 gap-4">
               <div class="space-y-1.5">
                 <label class="text-[10px] font-black text-gray-400 uppercase tracking-wide block">Opening Time</label>
@@ -534,20 +632,20 @@ const handleProfileSubmission = async () => {
             <h3 class="text-xs font-black uppercase tracking-wider text-[#0A1128] border-b border-gray-200/60 pb-2.5 flex items-center justify-between">
               <span class="flex items-center space-x-2">
                 <MapPin class="w-4 h-4 text-indigo-600" />
-                <span>Storefront Hub Base &amp; Address</span>
+                <span>Store &amp; Address</span>
               </span>
-              
+
               <span v-if="hasExistingCoordinates" class="bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase px-2.5 py-1 rounded-full flex items-center gap-1">
-                <CheckCircle2 class="w-3 h-3 text-emerald-600" /> Hub GPS Locked
+                <CheckCircle2 class="w-3 h-3 text-emerald-600" /> GPS Locked
               </span>
             </h3>
 
             <!-- State Selector -->
             <div class="space-y-1.5">
               <label class="text-[11px] font-black uppercase tracking-wider text-gray-400">State *</label>
-              <select 
-                v-model="selectedState" 
-                @change="form.base_location_id = ''" 
+              <select
+                v-model="selectedState"
+                @change="form.base_location_id = ''"
                 class="w-full bg-white border border-gray-200/80 rounded-xl px-4 py-3.5 text-xs font-black text-[#0A1128] focus:outline-none cursor-pointer"
               >
                 <option value="" disabled>Select State</option>
@@ -558,9 +656,9 @@ const handleProfileSubmission = async () => {
             <!-- Coverage Area / Hub Selector -->
             <div class="space-y-1.5">
               <label class="text-[11px] font-black uppercase tracking-wider text-gray-400">Operational Hub Base *</label>
-              <select 
-                v-model="form.base_location_id" 
-                required 
+              <select
+                v-model="form.base_location_id"
+                required
                 :disabled="!selectedState || filteredLocations.length === 0"
                 class="w-full bg-white border border-gray-200/80 rounded-xl px-4 py-3.5 text-xs font-black text-[#0A1128] focus:outline-none cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
               >
@@ -570,14 +668,14 @@ const handleProfileSubmission = async () => {
                 </option>
               </select>
             </div>
-            
+
             <div class="space-y-1.5">
               <label class="text-[11px] font-black uppercase tracking-wider text-gray-400">Specific Street Details</label>
-              <input 
-                v-model="form.street_address" 
-                type="text" 
-                placeholder="e.g., Layout Road, GRA..." 
-                class="w-full bg-white border border-gray-200/80 rounded-xl px-4 py-3.5 text-xs font-semibold text-[#0A1128]" 
+              <input
+                v-model="form.street_address"
+                type="text"
+                placeholder="e.g., Layout Road, GRA..."
+                class="w-full bg-white border border-gray-200/80 rounded-xl px-4 py-3.5 text-xs font-semibold text-[#0A1128]"
               />
             </div>
 
@@ -592,10 +690,10 @@ const handleProfileSubmission = async () => {
                 </p>
               </div>
 
-              <button 
-                @click="syncCoverageAreaCoordinates" 
+              <button
+                @click="syncCoverageAreaCoordinates"
                 :disabled="isGettingLocation || !activeHubSummary"
-                type="button" 
+                type="button"
                 class="bg-gray-100 hover:bg-[#0A1128] hover:text-[#D4F53C] text-[#0A1128] px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center space-x-1.5 shrink-0 cursor-pointer border-0 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Loader2 v-if="isGettingLocation" class="w-3.5 h-3.5 animate-spin" />

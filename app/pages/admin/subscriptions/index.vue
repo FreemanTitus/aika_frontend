@@ -1,8 +1,8 @@
 <!-- pages/admin/subscriptions/index.vue -->
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter, useCookie, useRuntimeConfig, navigateTo } from '#app'
-import { Layers, Plus, AlertCircle, Check, Trash2, Edit3, RefreshCw, Loader2, Users, ShoppingCart, Package, Zap, Star, BarChart3 } from '@lucide/vue'
+import { useCookie, useRuntimeConfig, navigateTo } from '#app'
+import { Layers, Plus, AlertCircle, Check, Trash2, Edit3, RefreshCw, Loader2, Users, ShoppingCart, Package, Zap, Star, BarChart3, Calendar } from '@lucide/vue'
 
 definePageMeta({
   layout: 'admin',
@@ -13,12 +13,28 @@ const config = useRuntimeConfig()
 const apiBase = config.public.apiBase
 
 const authToken = useCookie('auth_token')
-const router = useRouter()
 
 const plans = ref<any[]>([])
 const pending = ref<boolean>(true)
 const error = ref<any>(null)
 const deletingId = ref<number | null>(null)
+
+const INTERVAL_META: Record<string, { label: string; suffix: string; days: number }> = {
+  monthly: { label: 'Monthly', suffix: '/ month', days: 30 },
+  quarterly: { label: 'Quarterly', suffix: '/ quarter', days: 90 },
+  semi_annual: { label: '6 Months', suffix: '/ 6 months', days: 180 },
+  annual: { label: 'Annually', suffix: '/ year', days: 365 }
+}
+
+const getIntervalMeta = (plan: any) => {
+  const key = String(plan?.billing_interval || 'monthly').trim().toLowerCase()
+  const fallback = INTERVAL_META[key] ?? INTERVAL_META.monthly!
+  return {
+    label: fallback.label,
+    suffix: fallback.suffix,
+    days: Number(plan?.duration_days) || fallback.days
+  }
+}
 
 const fetchSubscriptionPlans = async () => {
   pending.value = true
@@ -82,7 +98,7 @@ const deletePlan = async (id: number, name: string) => {
 <template>
   <div class="min-h-screen bg-gray-50/50 p-6 lg:p-10 text-left">
     <div class="max-w-7xl mx-auto space-y-8">
-      
+
       <!-- Header Section -->
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -91,7 +107,7 @@ const deletePlan = async (id: number, name: string) => {
         </div>
 
         <div class="flex items-center gap-3">
-          <button 
+          <button
             type="button"
             @click="navigateToVendorSubscriptions"
             class="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 text-xs font-bold rounded-xl shadow-xs hover:bg-gray-50 transition-all flex items-center gap-2 cursor-pointer outline-none"
@@ -100,7 +116,7 @@ const deletePlan = async (id: number, name: string) => {
             View Vendor Subscriptions
           </button>
 
-          <button 
+          <button
             type="button"
             @click="navigateToCreate"
             class="px-5 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center gap-2 cursor-pointer outline-none border-0"
@@ -109,10 +125,10 @@ const deletePlan = async (id: number, name: string) => {
             Provision New Tier
           </button>
 
-          <button 
-            @click="fetchSubscriptionPlans" 
+          <button
+            @click="fetchSubscriptionPlans"
             :disabled="pending"
-            type="button" 
+            type="button"
             class="bg-white border border-gray-200 shadow-xs text-gray-700 text-xs font-bold p-2.5 rounded-xl transition flex items-center justify-center hover:bg-gray-50 active:scale-95 disabled:opacity-50 cursor-pointer outline-none shrink-0"
             title="Refresh Subscription Tiers"
           >
@@ -140,15 +156,15 @@ const deletePlan = async (id: number, name: string) => {
 
       <!-- Plans Grid Workspace -->
       <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        
-        <div 
-          v-for="plan in plans" 
-          :key="plan.id" 
+
+        <div
+          v-for="plan in plans"
+          :key="plan.id"
           class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 flex flex-col justify-between space-y-6 hover:shadow-md transition-shadow relative overflow-hidden"
         >
           <!-- Availability Badge Tag -->
           <div class="absolute top-6 right-6">
-            <span 
+            <span
               :class="[
                 'px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg',
                 plan.is_available ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
@@ -159,9 +175,15 @@ const deletePlan = async (id: number, name: string) => {
           </div>
 
           <!-- Plan Info -->
-          <div class="space-y-3 pr-16">
-            <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
-              <Layers :size="20" />
+          <div class="space-y-3 pr-24">
+            <div class="flex items-center gap-2">
+              <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold shrink-0">
+                <Layers :size="20" />
+              </div>
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-700 text-[10px] font-black uppercase tracking-wider rounded-lg">
+                <Calendar :size="11" />
+                {{ getIntervalMeta(plan).label }} · {{ getIntervalMeta(plan).days }}d
+              </span>
             </div>
             <div>
               <h3 class="text-base font-black text-gray-900 tracking-tight">{{ plan.name }}</h3>
@@ -171,9 +193,9 @@ const deletePlan = async (id: number, name: string) => {
 
           <!-- Pricing Block -->
           <div class="py-4 border-y border-gray-100 flex items-center justify-between">
-            <div class="flex items-baseline gap-1">
+            <div class="flex items-baseline gap-1.5">
               <span class="text-2xl font-black text-gray-900">₦{{ Number(plan.price).toLocaleString() }}</span>
-              <span class="text-xs text-gray-400 font-bold uppercase tracking-wider">/ month</span>
+              <span class="text-xs text-gray-400 font-bold uppercase tracking-wider">{{ getIntervalMeta(plan).suffix }}</span>
             </div>
           </div>
 
@@ -217,8 +239,8 @@ const deletePlan = async (id: number, name: string) => {
           <div class="space-y-2 flex-1 pt-1">
             <p class="text-[10px] font-black uppercase tracking-wider text-gray-400">Mesh Capabilities</p>
             <div class="space-y-1.5">
-              <div 
-                v-for="(feature, idx) in plan.features_raw?.split(/[\n,]/).map((f: string) => f.trim()).filter(Boolean)" 
+              <div
+                v-for="(feature, idx) in plan.features_raw?.split(/[\n,]/).map((f: string) => f.trim()).filter(Boolean)"
                 :key="idx"
                 class="flex items-start gap-2 text-xs font-semibold text-gray-700"
               >
@@ -232,7 +254,7 @@ const deletePlan = async (id: number, name: string) => {
           <div class="pt-4 border-t border-gray-100 flex items-center justify-between">
             <span class="text-[11px] font-mono text-gray-400">slug: {{ plan.slug }}</span>
             <div class="flex items-center gap-2">
-              <button 
+              <button
                 type="button"
                 @click="navigateToEdit(plan.id)"
                 class="p-2 bg-gray-50 hover:bg-indigo-50 hover:text-indigo-600 text-gray-600 rounded-xl transition-all cursor-pointer outline-none"
@@ -240,7 +262,7 @@ const deletePlan = async (id: number, name: string) => {
               >
                 <Edit3 :size="16" />
               </button>
-              <button 
+              <button
                 type="button"
                 @click="deletePlan(plan.id, plan.name)"
                 :disabled="deletingId === plan.id"
@@ -261,7 +283,7 @@ const deletePlan = async (id: number, name: string) => {
             <Layers :size="24" />
           </div>
           <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">No Subscription Tiers Deployed</p>
-          <button 
+          <button
             type="button"
             @click="navigateToCreate"
             class="mt-2 px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-all cursor-pointer outline-none border-0"

@@ -12,7 +12,11 @@ import {
   Layers,
   ShieldCheck,
   AlertTriangle,
-  Sparkles
+  Sparkles,
+  Lock,
+  Wallet,
+  RefreshCw,
+  Receipt
 } from '@lucide/vue'
 import { Line } from 'vue-chartjs'
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js'
@@ -36,6 +40,52 @@ const dashboardPayload = ref<any>(null)
 const pending = ref<boolean>(true)
 const error = ref<any>(null)
 
+// Escrow / Available balances & pending-until-received order transactions
+const transactionsPayload = ref<{
+  escrow_balance: number
+  available_balance: number
+  pending_count: number
+  transactions: any[]
+}>({
+  escrow_balance: 0,
+  available_balance: 0,
+  pending_count: 0,
+  transactions: []
+})
+const transactionsLoading = ref<boolean>(false)
+const transactionsError = ref<string | null>(null)
+
+// Fetch order transactions (pending in escrow until customer clicks received)
+const fetchDashboardTransactions = async () => {
+  transactionsLoading.value = true
+  transactionsError.value = null
+
+  const authToken = useCookie('auth_token')
+
+  try {
+    const res: any = await $fetch(`${apiBase}/api/v1/merchant/dashboard/transactions`, {
+      method: 'GET',
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+        ...(authToken.value ? { Authorization: `Bearer ${authToken.value}` } : {})
+      }
+    })
+
+    const raw = res?.data || res || {}
+    transactionsPayload.value = {
+      escrow_balance: Number(raw.escrow_balance ?? 0),
+      available_balance: Number(raw.available_balance ?? 0),
+      pending_count: Number(raw.pending_count ?? 0),
+      transactions: Array.isArray(raw.transactions) ? raw.transactions : []
+    }
+  } catch (err: any) {
+    console.error("Merchant dashboard transactions error:", err)
+    transactionsError.value = err?.data?.detail || err?.message || "Unable to load order transactions."
+  } finally {
+    transactionsLoading.value = false
+  }
+}
+
 // Fetch live metrics, recent orders, and dynamic chart trends with explicit headers
 const fetchDashboardData = async () => {
   pending.value = true
@@ -44,14 +94,18 @@ const fetchDashboardData = async () => {
   const authToken = useCookie('auth_token')
 
   try {
-    const res: any = await $fetch(`${apiBase}/api/v1/merchant/dashboard/summary`, {
-      method: 'GET',
-      headers: {
-        'ngrok-skip-browser-warning': 'true',
-        ...(authToken.value ? { Authorization: `Bearer ${authToken.value}` } : {})
-      }
-    })
+    const [summaryRes] = await Promise.all([
+      $fetch(`${apiBase}/api/v1/merchant/dashboard/summary`, {
+        method: 'GET',
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+          ...(authToken.value ? { Authorization: `Bearer ${authToken.value}` } : {})
+        }
+      }),
+      fetchDashboardTransactions()
+    ])
 
+    const res: any = summaryRes
     const rawData = res?.data || res || {}
     dashboardPayload.value = {
       metrics: rawData.metrics || { total_revenue: 0, orders_count: 0, success_rate: 0, active_deliveries: 0 },
@@ -170,6 +224,12 @@ const getStatusClass = (status: string) => {
     case 'cancelled': return 'bg-rose-50 text-rose-700 border-rose-100'
     default: return 'bg-gray-50 text-gray-600 border-gray-100'
   }
+}
+const getTxStatusClass = (status: string) => {
+  if (status?.toLowerCase() === 'pending') {
+    return 'bg-amber-50 text-amber-800 border-amber-200'
+  }
+  return 'bg-emerald-50 text-emerald-700 border-emerald-200'
 }
 </script>
 
@@ -348,6 +408,84 @@ const getStatusClass = (status: string) => {
               <span class="text-2xl font-black text-[#0A1128] tracking-tight block font-mono">{{ dashboardPayload.metrics.active_deliveries }} Transits</span>
             </div>
             <div class="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center"><Clock class="w-5 h-5" /></div>
+          </div>
+        </div>
+
+        <!-- ESCROW & ORDER TRANSACTIONS (PENDING UNTIL CUSTOMER CLICKS RECEIVED) -->
+        <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+          <div class="p-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h2 class="text-lg font-black text-[#0A1128] tracking-tight flex items-center gap-2">
+                <Receipt class="w-4 h-4 text-amber-600" />
+                <span>Order Escrow &amp; Settlement Transactions</span>
+              </h2>
+              <p class="text-xs text-gray-400 font-medium mt-0.5">
+                Paid orders stay <strong class="text-amber-700">Pending</strong> in escrow until the customer clicks received and funds move to available balance.
+              </p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2.5">
+              <div class="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-black flex items-center gap-1.5">
+                <Lock class="w-3.5 h-3.5 text-amber-700" />
+                <span>Escrow: {{ formatCurrency(transactionsPayload.escrow_balance) }}</span>
+              </div>
+              <div class="px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-black flex items-center gap-1.5">
+                <Wallet class="w-3.5 h-3.5 text-emerald-700" />
+                <span>Available: {{ formatCurrency(transactionsPayload.available_balance) }}</span>
+              </div>
+              <button
+                type="button"
+                @click="fetchDashboardTransactions"
+                :disabled="transactionsLoading"
+                class="p-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition cursor-pointer disabled:opacity-50"
+                title="Refresh Order Transactions"
+              >
+                <RefreshCw :class="{ 'animate-spin': transactionsLoading }" class="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          <div v-if="transactionsError" class="p-6 text-xs font-bold text-rose-600">
+            {{ transactionsError }}
+          </div>
+
+          <div v-else class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-gray-50 text-[10px] font-black uppercase tracking-wider text-gray-400 border-b border-gray-100">
+                  <th class="py-3.5 px-6">Order / Reference</th>
+                  <th class="py-3.5 px-6">Customer</th>
+                  <th class="py-3.5 px-6">Amount</th>
+                  <th class="py-3.5 px-6">Status</th>
+                  <th class="py-3.5 px-6 text-right">Date</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-50 text-sm font-semibold text-gray-600">
+                <tr v-for="tx in transactionsPayload.transactions" :key="tx.id" class="hover:bg-gray-50/50 transition">
+                  <td class="py-3.5 px-6">
+                    <div class="flex flex-col">
+                      <span class="font-black text-[#0A1128] text-xs">{{ tx.title }}</span>
+                      <span class="font-mono text-[11px] text-gray-400">{{ tx.reference }}</span>
+                    </div>
+                  </td>
+                  <td class="py-3.5 px-6 text-xs font-bold text-gray-800">{{ tx.customer_name }}</td>
+                  <td class="py-3.5 px-6 font-mono font-black text-[#0A1128]">{{ formatCurrency(tx.amount) }}</td>
+                  <td class="py-3.5 px-6">
+                    <span :class="getTxStatusClass(tx.status)" class="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-md border inline-block">
+                      {{ tx.status_label || tx.status }}
+                    </span>
+                  </td>
+                  <td class="py-3.5 px-6 text-right text-xs text-gray-400 font-mono">
+                    {{ tx.created_at ? new Date(tx.created_at).toLocaleDateString('en-NG') : '—' }}
+                  </td>
+                </tr>
+                <tr v-if="!transactionsPayload.transactions.length && !transactionsLoading">
+                  <td colspan="5" class="text-center py-10 text-gray-400 text-xs font-bold uppercase tracking-wider">
+                    No paid order transactions yet.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
