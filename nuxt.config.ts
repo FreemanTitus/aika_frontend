@@ -80,6 +80,14 @@ export default defineNuxtConfig({
         { name: 'apple-mobile-web-app-title', content: 'Aika' },
       ],
       link: [
+        // Google Fonts (Plus Jakarta Sans & JetBrains Mono)
+        { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+        { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
+        {
+          rel: 'stylesheet',
+          href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Poppins:wght@400;500;600;700;800;900&display=swap'
+        },
+
         // Canonical & Dual-Domain References
         { rel: 'canonical', href: 'https://www.useaika.com.ng' },
         { rel: 'alternate', hreflang: 'en-NG', href: 'https://www.useaika.com.ng' },
@@ -137,7 +145,7 @@ export default defineNuxtConfig({
     },
     buildSW: {
       swSrc: 'service-worker/sw.ts',
-      globPatterns: ['**/*.{js,css,html,png,svg,ico,mp3}'],
+      globPatterns: ['**/*.{js,css,html,png,svg,ico,mp3,woff2}'],
     },
     devOptions: { enabled: false },
   },

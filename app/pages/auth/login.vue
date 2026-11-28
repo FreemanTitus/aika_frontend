@@ -117,8 +117,8 @@ const handleLoginSubmit = async () => {
           Operations Portal
         </span>
         <h2 class="text-5xl font-black leading-tight tracking-tight">
-          Sign in to your<br />
-          <span class="text-[#D4F53C]">logistics hub.</span>
+          Sign in to<br />
+          <span class="text-[#D4F53C]">Aika</span>
         </h2>
         <p class="text-gray-300 text-sm leading-relaxed max-w-md font-medium">
           Manage live deliveries, track vendor storefronts, and coordinate instant fleet dispatches seamlessly across the network.
@@ -158,9 +158,6 @@ const handleLoginSubmit = async () => {
 
         <!-- Header -->
         <header class="text-center lg:text-left space-y-2">
-          <span class="inline-block text-[10px] font-black uppercase tracking-[0.15em] text-[#0A1128] bg-[#D4F53C]/40 px-3.5 py-1 rounded-full">
-            Secure Gateway
-          </span>
           <h1 class="text-3xl sm:text-4xl font-black text-[#0A1128] tracking-tight">
             {{ isClient ? 'Welcome back' : 'Field Operations' }}
           </h1>
