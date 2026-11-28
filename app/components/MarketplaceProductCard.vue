@@ -16,8 +16,13 @@ const emit = defineEmits<{
 const vendor = computed(() => props.item.vendor || {})
 
 const storeUrl = computed(() => {
-  const target = vendor.value.store_slug || vendor.value.id
-  return `/store/${target}?item=${encodeURIComponent(String(props.item.id))}`
+  const target =
+    vendor.value.id ||
+    vendor.value.vendor_id ||
+    props.item.vendor_id ||
+    props.item.store_id ||
+    vendor.value.store_slug
+  return `/store/${encodeURIComponent(String(target))}?item=${encodeURIComponent(String(props.item.id))}`
 })
 
 const hasDiscount = computed(() => {

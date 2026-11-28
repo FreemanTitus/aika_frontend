@@ -1,4 +1,4 @@
-<!-- pages/auth/register-rider.vue -->
+<!-- pages/rider/register.vue -->
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRuntimeConfig } from '#app'
@@ -137,15 +137,33 @@ const form = ref({
   terms: false
 })
 
-// Fetch active coverage areas from the database
+// Extract a unique list of states from the fetched rider-eligible locations
+const uniqueStates = computed(() => {
+  const states = availableLocations.value.map(loc => loc.state_name).filter(Boolean)
+  return [...new Set(states)].sort() as string[]
+})
+
+// Fetch rider-eligible coverage areas from the database
 const fetchLocations = async () => {
   fetchingLocations.value = true
   try {
     const res: any = await $fetch(`${apiBase}/api/v1/auth/locations`, {
       method: 'GET',
+      params: {
+        role: 'rider',
+        for_rider: true
+      },
       headers: { 'ngrok-skip-browser-warning': 'true' }
     })
-    availableLocations.value = res?.data || res || []
+    const rawLocations = res?.data || res || []
+    availableLocations.value = Array.isArray(rawLocations)
+      ? rawLocations.filter((loc: any) => loc?.allows_rider_registration !== false)
+      : []
+
+    const firstState = uniqueStates.value[0]
+    if (firstState && !selectedState.value) {
+      selectedState.value = firstState
+    }
   } catch (err) {
     console.error("Failed to load locations", err)
   } finally {
@@ -162,12 +180,6 @@ onBeforeUnmount(() => {
   if (guarantorPassportPreview.value) {
     URL.revokeObjectURL(guarantorPassportPreview.value)
   }
-})
-
-// Extract a unique list of states from the fetched locations
-const uniqueStates = computed(() => {
-  const states = availableLocations.value.map(loc => loc.state_name).filter(Boolean)
-  return [...new Set(states)].sort()
 })
 
 // Filter locations to only show areas within the selected state

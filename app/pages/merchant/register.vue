@@ -1,20 +1,21 @@
 <!-- pages/merchant/register.vue -->
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRuntimeConfig } from '#app'
-import { 
-  Layers3, 
-  MapPin, 
-  Mail, 
-  Phone, 
-  Lock, 
-  ShieldCheck, 
-  AlertCircle, 
+import {
+  Layers3,
+  MapPin,
+  Mail,
+  Phone,
+  Lock,
+  ShieldCheck,
+  AlertCircle,
   Loader2,
-  Eye, 
+  Eye,
   EyeOff,
   Store,
-  ArrowRight
+  ArrowRight,
+  FileBadge2
 } from '@lucide/vue'
 
 definePageMeta({
@@ -95,7 +96,8 @@ const form = ref({
   email: '',
   phone_number: '',
   base_location: null as number | null,
-  has_business_registration: 'no',
+  has_business_registration: 'no' as 'yes' | 'no',
+  cac_reg_number: '',
   whatsapp_updates: true,
   password: '',
   confirm_password: '',
@@ -103,22 +105,43 @@ const form = ref({
 })
 
 const isEcommerceNicheVisible = computed(() => form.value.business_category === 'e_commerce')
+const isCacRegistered = computed(() => form.value.has_business_registration === 'yes')
 
-// Fetch active coverage areas from the database
+watch(isCacRegistered, (registered) => {
+  if (!registered) {
+    form.value.cac_reg_number = ''
+  }
+})
+
+// Fetch merchant-eligible coverage areas from the database
 const fetchLocations = async () => {
   fetchingLocations.value = true
   try {
     const res: any = await $fetch(`${apiBase}/api/v1/auth/locations`, {
       method: 'GET',
+      params: {
+        role: 'merchant',
+        for_merchant: true
+      },
       headers: { 'ngrok-skip-browser-warning': 'true' }
     })
-    const locationsData = res?.data || res || []
+    const rawLocations = res?.data || res || []
+    const locationsData = Array.isArray(rawLocations)
+      ? rawLocations.filter((loc: any) => loc?.allows_merchant_registration !== false)
+      : []
+
     allLocations.value = locationsData
-    
+
     // Extract unique state names
     uniqueStates.value = Array.from(
       new Set(locationsData.map((loc: any) => loc.state_name?.toString()).filter(Boolean))
     ).sort() as string[]
+
+    // If only one state is open for merchant onboarding (e.g. Nasarawa), pre-select it
+    const firstState = uniqueStates.value[0]
+    if (firstState && !selectedState.value) {
+      onStateSelected(firstState)
+    }
   } catch (err) {
     console.error("Failed to load locations", err)
     errorText.value = "Failed to load location hubs. Please refresh the page."
@@ -131,7 +154,7 @@ const fetchLocations = async () => {
 const onStateSelected = (stateName: string) => {
   selectedState.value = stateName
   form.value.base_location = null // Reset hub ID when state changes
-  
+
   if (stateName) {
     filteredHubs.value = allLocations.value
       .filter((loc: any) => loc.state_name === stateName)
@@ -182,6 +205,18 @@ const validateFormInputMetrics = (): boolean => {
     return false
   }
 
+  if (isCacRegistered.value) {
+    const cleanCac = form.value.cac_reg_number.trim()
+    if (!cleanCac) {
+      errorText.value = "Please enter your CAC registration number."
+      return false
+    }
+    if (cleanCac.length > 15) {
+      errorText.value = "CAC registration number must not exceed 15 characters."
+      return false
+    }
+  }
+
   if (!form.value.terms) {
     errorText.value = "You must accept the terms and privacy policy to proceed."
     return false
@@ -203,6 +238,10 @@ const handleMerchantOnboardingSubmit = async () => {
 
   isSubmitting.value = true
 
+  const cleanCacNumber = isCacRegistered.value
+    ? form.value.cac_reg_number.trim().toUpperCase()
+    : null
+
   const payload = {
     account_role: 'business',
     company_name: form.value.company_name,
@@ -215,6 +254,8 @@ const handleMerchantOnboardingSubmit = async () => {
     base_location: form.value.base_location, // Sends integer hub ID
     street_address: form.value.street_address,
     has_business_registration: form.value.has_business_registration,
+    is_cac_registered: isCacRegistered.value,
+    cac_reg_number: cleanCacNumber,
     password: form.value.password,
     whatsapp_updates: form.value.whatsapp_updates,
     is_terms_accepted: form.value.terms,
@@ -304,7 +345,7 @@ const handleMerchantOnboardingSubmit = async () => {
     <!-- ───────── Right Side: Full White Form Panel ───────── -->
     <main class="flex flex-col justify-center items-center bg-white p-6 sm:p-12 lg:p-16 min-h-screen lg:min-h-0 overflow-y-auto max-h-screen lg:max-h-screen no-scrollbar">
       <div class="w-full max-w-md mx-auto space-y-6 my-auto py-6">
-        
+
         <!-- Mobile brand mark -->
         <div class="lg:hidden flex items-center justify-center mb-4">
           <div class="w-32">
@@ -344,7 +385,7 @@ const handleMerchantOnboardingSubmit = async () => {
 
         <!-- Form -->
         <form @submit.prevent="handleMerchantOnboardingSubmit" class="space-y-3.5" novalidate>
-          
+
           <!-- Establishment Name -->
           <div class="space-y-1">
             <label class="block text-xs font-black text-gray-400 uppercase tracking-wider">Name of Establishment *</label>
@@ -427,10 +468,10 @@ const handleMerchantOnboardingSubmit = async () => {
             <div class="space-y-1">
               <label class="block text-xs font-black text-gray-400 uppercase tracking-wider">State *</label>
               <div class="relative">
-                <select 
-                  v-model="selectedState" 
+                <select
+                  v-model="selectedState"
                   @change="onStateSelected(selectedState)"
-                  required 
+                  required
                   class="w-full px-4 py-3 bg-gray-50/80 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-bold text-xs appearance-none cursor-pointer shadow-2xs"
                 >
                   <option value="" disabled class="text-gray-400">
@@ -447,10 +488,10 @@ const handleMerchantOnboardingSubmit = async () => {
             <div class="space-y-1">
               <label class="block text-xs font-black text-gray-400 uppercase tracking-wider">Hub Area *</label>
               <div class="relative">
-                <select 
-                  v-model="form.base_location" 
+                <select
+                  v-model="form.base_location"
                   :disabled="!selectedState"
-                  required 
+                  required
                   class="w-full px-4 py-3 bg-gray-50/80 border border-gray-200 rounded-2xl outline-none focus:border-[#0A1128] focus:bg-white text-[#0A1128] font-bold text-xs appearance-none cursor-pointer shadow-2xs disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                   <option :value="null" disabled class="text-gray-400">
@@ -474,8 +515,8 @@ const handleMerchantOnboardingSubmit = async () => {
             </div>
           </div>
 
-          <!-- Business Registration Radio -->
-          <div class="space-y-1.5 pt-0.5">
+          <!-- Business Registration Radio & CAC Number -->
+          <div class="space-y-2.5 pt-0.5">
             <label class="block text-xs font-black text-gray-400 uppercase tracking-wider">Do you have formal business registration? *</label>
             <div class="flex items-center space-x-6 bg-gray-50/80 p-3 rounded-2xl border border-gray-200">
               <label class="flex items-center space-x-2 cursor-pointer">
@@ -486,6 +527,21 @@ const handleMerchantOnboardingSubmit = async () => {
                 <input type="radio" v-model="form.has_business_registration" value="no" class="w-4 h-4 text-[#0A1128] border-gray-300 focus:ring-0 cursor-pointer accent-[#0A1128]" />
                 <span class="text-xs font-bold text-[#0A1128]">No (Independent Store)</span>
               </label>
+            </div>
+
+            <div v-if="isCacRegistered" class="space-y-1 p-3.5 bg-amber-50/60 rounded-2xl border border-amber-200 animate-fade-in">
+              <label class="block text-xs font-black text-amber-900 uppercase tracking-wider">CAC Registration Number *</label>
+              <div class="relative group">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-amber-700"><FileBadge2 class="w-4 h-4" /></span>
+                <input
+                  v-model="form.cac_reg_number"
+                  type="text"
+                  maxlength="15"
+                  placeholder="e.g. BN1234567 or RC123456"
+                  required
+                  class="w-full pl-10 pr-4 py-2.5 bg-white border border-amber-300 rounded-xl outline-none focus:border-[#0A1128] text-[#0A1128] font-mono font-bold text-xs uppercase transition"
+                />
+              </div>
             </div>
           </div>
 

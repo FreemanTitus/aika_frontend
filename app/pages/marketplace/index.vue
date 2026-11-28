@@ -71,6 +71,56 @@ const onUpdateCartQuantity = async (payload: {
   }
 }
 
+
+// Build a quick lookup map from fetched vendors (by id and normalized name)
+const vendorCodeByKey = computed(() => {
+  const res = response.value?.data || response.value || {}
+  const allVendors = [
+    ...(res.restaurants || []),
+    ...(res.e_commerce || []),
+    ...(res.other_businesses || [])
+  ]
+
+  const map = new Map<string, string>()
+  for (const v of allVendors) {
+    const code = v?.vendor_code || v?.code || v?.store_code || v?.slug || v?.id
+    if (!code) continue
+    if (v?.id != null) map.set(`id:${String(v.id)}`, String(code))
+    if (v?.company_name) map.set(`name:${String(v.company_name).trim().toLowerCase()}`, String(code))
+  }
+  return map
+})
+
+const normalizeProductItem = (item: any) => {
+  const vendorObj = item?.vendor || {}
+  const vendorNameKey = String(
+    item?.vendor_name || vendorObj?.company_name || vendorObj?.name || ''
+  ).trim().toLowerCase()
+
+  const resolvedVendorCode =
+    item?.vendor_code ||
+    item?.store_code ||
+    vendorObj?.vendor_code ||
+    vendorObj?.code ||
+    vendorObj?.store_code ||
+    vendorCodeByKey.value.get(`id:${String(item?.vendor_id ?? vendorObj?.id ?? '')}`) ||
+    vendorCodeByKey.value.get(`name:${vendorNameKey}`) ||
+    item?.vendor_id ||
+    vendorObj?.id ||
+    ''
+
+  return {
+    ...item,
+    vendor_code: resolvedVendorCode,
+    store_code: resolvedVendorCode,
+    vendor: {
+      ...vendorObj,
+      vendor_code: vendorObj?.vendor_code || resolvedVendorCode,
+      code: vendorObj?.code || resolvedVendorCode
+    }
+  }
+}
+
 type ViewMode = 'vendors' | 'products'
 const viewMode = ref<ViewMode>('vendors')
 
@@ -204,7 +254,9 @@ const fetchProducts = async ({ append = false, reset = false } = {}) => {
       }
     })
 
-    const incoming: any[] = res?.data?.items || res?.items || []
+    const rawIncoming: any[] = res?.data?.items || res?.items || []
+    const incoming: any[] = rawIncoming.map(normalizeProductItem)
+    
     if (append) {
       const existingIds = new Set(productItems.value.map(i => String(i.id)))
       const uniqueNew = incoming.filter(i => !existingIds.has(String(i.id)))

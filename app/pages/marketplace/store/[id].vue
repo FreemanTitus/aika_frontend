@@ -1,6 +1,6 @@
 <!-- pages/marketplace/[id].vue -->
 <script setup lang="ts">
-import { ref, watch, computed, onMounted } from 'vue'
+import { ref, watch, computed, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter, useRuntimeConfig } from '#app'
 import {
   MapPin,
@@ -38,7 +38,13 @@ const getStoreId = (): string => {
   return Array.isArray(paramId) ? (paramId[0] || '') : (paramId || '')
 }
 
+const getHighlightedItemId = (): string => {
+  const qItem = route.query.item
+  return String(Array.isArray(qItem) ? (qItem[0] || '') : (qItem || '')).trim()
+}
+
 const storeId = ref<string>(getStoreId())
+const highlightedItemId = ref<string>(getHighlightedItemId())
 
 const { addToCart, cartItemCount, cartTotal, cartItems, updateQuantity, removeFromCart } = useCart()
 
@@ -63,15 +69,28 @@ const getMediaUrl = (url: string | null) => {
   return `${cleanBase}${cleanPath}`
 }
 
+const scrollToHighlightedItem = async () => {
+  if (!highlightedItemId.value || !import.meta.client) return
+  await nextTick()
+  const el = document.getElementById(`store-item-${highlightedItemId.value}`)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setTimeout(() => {
+      highlightedItemId.value = ''
+    }, 3500)
+  }
+}
+
 const fetchStoreData = async () => {
   pending.value = true
   error.value = false
 
   const currentId = getStoreId()
   storeId.value = currentId
+  highlightedItemId.value = getHighlightedItemId()
   const authToken = useCookie('auth_token')
 
-  let url = `${apiBase}/api/v1/marketplace/vendor/${currentId}`
+  let url = `${apiBase}/api/v1/marketplace/vendor/${encodeURIComponent(currentId)}`
   if (activeSubcategory.value) {
     url += `?subcategory=${encodeURIComponent(activeSubcategory.value)}`
   }
@@ -101,6 +120,8 @@ const fetchStoreData = async () => {
       products: rawData.products || [],
       menu_categories: rawData.menu_categories || null
     }
+
+    await scrollToHighlightedItem()
   } catch (err) {
     console.error("Store resolution error:", err)
     error.value = true
@@ -114,10 +135,11 @@ onMounted(() => {
 })
 
 watch(
-  () => [route.params.id, route.query.subcategory],
+  () => [route.params.id, route.query.subcategory, route.query.item],
   ([newId, newSubcat]) => {
     storeId.value = Array.isArray(newId) ? (newId[0] || '') : (newId || '')
     activeSubcategory.value = (newSubcat as string) || null
+    highlightedItemId.value = getHighlightedItemId()
     fetchStoreData()
   }
 )
@@ -472,12 +494,18 @@ const confirmMenuOption = (): void => {
               <!-- E-Commerce grid -->
               <div v-if="storePayload.business_type === 'e_commerce'">
                 <div v-if="storePayload.products.length > 0" class="grid grid-cols-2 gap-4 md:grid-cols-3">
-                  <MarketplaceStoreProductCard
+                  <div
                     v-for="item in storePayload.products"
                     :key="item.id"
-                    :item="item"
-                    @add="handleAddToCart"
-                  />
+                    :id="`store-item-${item.id}`"
+                    :class="highlightedItemId && String(item.id) === highlightedItemId ? 'rounded-3xl ring-2 ring-[#D4F53C] ring-offset-2' : ''"
+                    class="transition-all duration-300"
+                  >
+                    <MarketplaceStoreProductCard
+                      :item="item"
+                      @add="handleAddToCart"
+                    />
+                  </div>
                 </div>
 
                 <div v-else class="space-y-4 rounded-3xl border border-gray-200 bg-white py-20 text-center">
@@ -505,12 +533,18 @@ const confirmMenuOption = (): void => {
                   </h2>
 
                   <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <MarketplaceMenuItemRow
+                    <div
                       v-for="item in products"
                       :key="item.id"
-                      :item="item"
-                      @add="handleAddToCart"
-                    />
+                      :id="`store-item-${item.id}`"
+                      :class="highlightedItemId && String(item.id) === highlightedItemId ? 'rounded-2xl ring-2 ring-[#D4F53C] ring-offset-2' : ''"
+                      class="transition-all duration-300"
+                    >
+                      <MarketplaceMenuItemRow
+                        :item="item"
+                        @add="handleAddToCart"
+                      />
+                    </div>
                   </div>
                 </section>
               </div>
