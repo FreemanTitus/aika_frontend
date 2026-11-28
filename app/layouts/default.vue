@@ -268,10 +268,47 @@ const currentYear = new Date().getFullYear()
                             Central Hotline Active
                         </span>
                         
-                        <div class="flex items-center space-x-4 text-gray-300 text-xs font-black">
-                            <a href="#" class="hover:text-[#D4F53C] transition" aria-label="Instagram">IG</a>
-                            <a href="#" class="hover:text-[#D4F53C] transition" aria-label="Twitter">X</a>
-                            <a href="#" class="hover:text-[#D4F53C] transition" aria-label="Facebook">FB</a>
+                        <div class="flex items-center space-x-2.5 text-gray-300">
+                            <!-- Instagram -->
+                            <a
+                              href="https://instagram.com/useaika2026"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label="Instagram"
+                              class="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-[#D4F53C] hover:text-[#0A1128] hover:border-[#D4F53C] transition"
+                            >
+                              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+                                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                                <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+                              </svg>
+                            </a>
+
+                            <!-- X (Twitter) -->
+                            <a
+                              href="https://x.com/useaika"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label="X (Twitter)"
+                              class="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-[#D4F53C] hover:text-[#0A1128] hover:border-[#D4F53C] transition"
+                            >
+                              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                              </svg>
+                            </a>
+
+                            <!-- Facebook -->
+                            <a
+                              href="#"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label="Facebook"
+                              class="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-[#D4F53C] hover:text-[#0A1128] hover:border-[#D4F53C] transition"
+                            >
+                              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M13.5 22v-8.25h2.77l.41-3.22H13.5V8.48c0-.93.26-1.57 1.6-1.57h1.7V4.03c-.3-.04-1.31-.13-2.49-.13-2.46 0-4.15 1.5-4.15 4.26v2.37H7.38v3.22h2.78V22h3.34z" />
+                              </svg>
+                            </a>
                         </div>
                     </div>
                 </div>

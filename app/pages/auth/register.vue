@@ -498,7 +498,10 @@ const handleOnboardingSubmit = async () => {
             Already registered? <NuxtLink to="/auth/login" class="text-[#0A1128] font-black hover:underline ml-1">Login</NuxtLink>
           </div>
           <div class="text-gray-400 font-medium text-[11px]">
-            Are you a business owner? <NuxtLink to="/merchant/register" class="text-[#0A1128] font-black hover:underline ml-1">Register as a Merchant</NuxtLink>
+            Want more customers in town?
+            <NuxtLink to="/merchant/register" class="text-[#0A1128] font-black hover:underline ml-1">
+              Open your storefront
+            </NuxtLink>
           </div>
         </div>
 

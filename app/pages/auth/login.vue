@@ -183,7 +183,7 @@ const handleLoginSubmit = async () => {
             class="flex items-center justify-center gap-2 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer border-0 outline-none"
           >
             <Building2 class="w-4 h-4" />
-            <span>Client / Vendor</span>
+            <span>Customer / Vendor</span>
           </button>
           <button
             role="tab"
