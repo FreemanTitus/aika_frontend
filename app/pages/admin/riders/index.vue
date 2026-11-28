@@ -85,27 +85,6 @@ const selectedRider = ref<RiderProfileModel | null>(null)
 const isSubmitting = ref(false)
 
 const isRegisterModalOpen = ref(false)
-const isRegisteringRider = ref(false)
-const registerError = ref<string | null>(null)
-const newRiderForm = ref({
-  first_name: '',
-  last_name: '',
-  email: '',
-  phone_number: '',
-  bike_plate_number: '',
-  device_type: 'smartphone',
-  employment_type: 'full_time',
-  payout_schedule: 'daily',
-  base_location: 'akwanga',
-  street_address: '',
-  id_type: 'nin',
-  id_number: '',
-  guarantor_name: '',
-  guarantor_phone: '',
-  guarantor_address: '',
-  password: 'Password123!',
-  terms: true
-})
 
 const isDetailModalOpen = ref(false)
 const activeRiderDetail = ref<RiderProfileModel | null>(null)
@@ -155,41 +134,6 @@ const openConfirmationModal = (rider: RiderProfileModel) => {
 const closeModal = () => {
   isModalOpen.value = false
   selectedRider.value = null
-}
-
-const handleAdminRegisterRider = async () => {
-  registerError.value = null
-  isRegisteringRider.value = true
-
-  try {
-    await $fetch(`${apiBase}/api/v1/auth/register/rider`, {
-      method: 'POST',
-      body: {
-        ...newRiderForm.value,
-        account_role: 'rider',
-        is_terms_accepted: true
-      },
-      headers: {
-        'ngrok-skip-browser-warning': 'true',
-        Authorization: `Bearer ${authToken.value}`
-      }
-    })
-
-    isRegisterModalOpen.value = false
-    newRiderForm.value = {
-      first_name: '', last_name: '', email: '', phone_number: '',
-      bike_plate_number: '', device_type: 'smartphone', employment_type: 'full_time',
-      payout_schedule: 'daily', base_location: 'akwanga', street_address: '',
-      id_type: 'nin', id_number: '', guarantor_name: '', guarantor_phone: '',
-      guarantor_address: '', password: 'Password123!', terms: true
-    }
-    await fetchRiders()
-  } catch (err: any) {
-    console.error(err?.data)
-    registerError.value = err?.data?.message || err?.data?.detail || "Failed to register rider account."
-  } finally {
-    isRegisteringRider.value = false
-  }
 }
 
 const openRiderDetail = async (rider: RiderProfileModel) => {
@@ -310,14 +254,13 @@ const navigateToPayouts = () => {
           </button>
 
           <!-- Admin Register Rider Trigger Button -->
-          <button 
-            type="button"
-            @click="isRegisterModalOpen = true"
-            class="px-5 py-3 bg-[#0A1128] hover:bg-indigo-900 text-[#D4F53C] text-xs font-black uppercase tracking-wider rounded-2xl shadow-sm transition-all flex items-center gap-2 cursor-pointer outline-none border-0"
+          <NuxtLink
+            to="/admin/riders/register"
+            class="px-5 py-3 bg-[#0A1128] hover:bg-indigo-900 text-[#D4F53C] text-xs font-black uppercase tracking-wider rounded-2xl shadow-sm transition-all inline-flex items-center gap-2 cursor-pointer outline-none border-0 no-underline"
           >
             <Plus :size="16" class="stroke-[3]" />
             Register New Rider
-          </button>
+          </NuxtLink>
         </div>
       </div>
 
@@ -464,131 +407,6 @@ const navigateToPayouts = () => {
         </table>
       </div>
     </div>
-
-    <!-- ADMIN REGISTER RIDER MODAL -->
-    <Teleport to="body">
-      <div v-if="isRegisterModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-        <div class="bg-white rounded-[32px] border border-gray-100 shadow-2xl max-w-lg w-full p-6 sm:p-8 space-y-6 text-left relative max-h-[90vh] overflow-y-auto">
-          
-          <button type="button" @click="isRegisterModalOpen = false" class="absolute top-6 right-6 text-gray-400 hover:text-gray-700 transition cursor-pointer border-0 bg-transparent">
-            <X :size="20" />
-          </button>
-
-          <div class="space-y-1 border-b border-gray-100 pb-4">
-            <span class="text-[10px] font-black uppercase tracking-widest bg-lime-100 text-lime-800 px-2.5 py-0.5 rounded-full">Fleet Provisioning</span>
-            <h2 class="text-lg font-black text-gray-900 tracking-tight mt-1">Register New Rider Account</h2>
-            <p class="text-xs text-gray-500 font-medium">Provision a new full-time or casual rider with operational tier rules.</p>
-          </div>
-
-          <form @submit.prevent="handleAdminRegisterRider" class="space-y-4">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">First Name</label>
-                <input v-model="newRiderForm.first_name" type="text" required class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs font-semibold text-gray-900 outline-none focus:border-indigo-600 focus:bg-white" placeholder="John" />
-              </div>
-              <div>
-                <label class="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Last Name</label>
-                <input v-model="newRiderForm.last_name" type="text" required class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs font-semibold text-gray-900 outline-none focus:border-indigo-600 focus:bg-white" placeholder="Doe" />
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Email Address</label>
-                <input v-model="newRiderForm.email" type="email" required class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs font-semibold text-gray-900 outline-none focus:border-indigo-600 focus:bg-white" placeholder="rider@domain.com" />
-              </div>
-              <div>
-                <label class="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Phone Number</label>
-                <input v-model="newRiderForm.phone_number" type="tel" required class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs font-semibold text-gray-900 outline-none focus:border-indigo-600 focus:bg-white" placeholder="08012345678" />
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Bike Plate Number</label>
-                <input v-model="newRiderForm.bike_plate_number" type="text" required class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs font-bold text-gray-900 font-mono outline-none focus:border-indigo-600 focus:bg-white" placeholder="KEF-442-AB" />
-              </div>
-              <div>
-                <label class="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Employment Model</label>
-                <select v-model="newRiderForm.employment_type" class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs font-bold text-gray-900 outline-none focus:border-indigo-600 focus:bg-white cursor-pointer">
-                  <option value="full_time">Full-Time (Fixed ₦1,000 / Order)</option>
-                  <option value="casual">Casual (Threshold Revenue Share)</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Payout Schedule</label>
-                <select v-model="newRiderForm.payout_schedule" class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs font-bold text-gray-900 outline-none focus:border-indigo-600 focus:bg-white cursor-pointer">
-                  <option value="daily">Daily Payout</option>
-                  <option value="weekly">Weekly Payout</option>
-                  <option value="monthly">Monthly Payout</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Base Location Hub</label>
-                <select v-model="newRiderForm.base_location" class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs font-bold text-gray-900 outline-none focus:border-indigo-600 focus:bg-white cursor-pointer">
-                  <option value="akwanga">Akwanga</option>
-                  <option value="keffi">Keffi</option>
-                  <option value="lafia">Lafia</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label class="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Residential Landmark</label>
-              <input v-model="newRiderForm.street_address" type="text" required class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs font-semibold text-gray-900 outline-none focus:border-indigo-600 focus:bg-white" placeholder="e.g., Opposite Central Mosque" />
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Means of ID</label>
-                <select v-model="newRiderForm.id_type" class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs font-bold text-gray-900 outline-none focus:border-indigo-600 focus:bg-white cursor-pointer">
-                  <option value="nin">National ID (NIN)</option>
-                  <option value="drivers_license">Driver's License</option>
-                  <option value="voters_card">Voter's Card</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">ID Number</label>
-                <input v-model="newRiderForm.id_number" type="text" required class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs font-mono font-bold text-gray-900 outline-none focus:border-indigo-600 focus:bg-white" placeholder="ID Number" />
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Guarantor Name</label>
-                <input v-model="newRiderForm.guarantor_name" type="text" required class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs font-semibold text-gray-900 outline-none focus:border-indigo-600 focus:bg-white" placeholder="Guarantor full name" />
-              </div>
-              <div>
-                <label class="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Guarantor Phone</label>
-                <input v-model="newRiderForm.guarantor_phone" type="tel" required class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs font-semibold text-gray-900 outline-none focus:border-indigo-600 focus:bg-white" placeholder="08000000000" />
-              </div>
-            </div>
-
-            <div>
-              <label class="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-1">Temporary Password</label>
-              <input v-model="newRiderForm.password" type="text" required class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-xs font-bold text-gray-900 outline-none focus:border-indigo-600 focus:bg-white" placeholder="Temporary password" />
-            </div>
-
-            <div v-if="registerError" class="p-3.5 bg-rose-50 border border-rose-100 rounded-2xl text-xs font-bold text-rose-600">
-              {{ registerError }}
-            </div>
-
-            <button 
-              type="submit" 
-              :disabled="isRegisteringRider"
-              class="w-full py-4 bg-[#0A1128] hover:bg-indigo-900 text-[#D4F53C] rounded-2xl text-xs font-black uppercase tracking-wider transition shadow-lg flex items-center justify-center gap-2 cursor-pointer outline-none border-0 disabled:opacity-50"
-            >
-              <Loader2 v-if="isRegisteringRider" class="w-4 h-4 animate-spin text-[#D4F53C]" />
-              <span>{{ isRegisteringRider ? 'Provisioning Account...' : 'Create Rider Account' }}</span>
-            </button>
-          </form>
-
-        </div>
-      </div>
-    </Teleport>
 
     <!-- RIDER DETAIL & KYC VETTING MODAL -->
     <Teleport to="body">

@@ -18,7 +18,10 @@ import {
   Camera
 } from '@lucide/vue'
 
-definePageMeta({ layout: 'default' })
+definePageMeta({
+  layout: 'admin',
+  middleware: 'auth'
+})
 
 const config = useRuntimeConfig()
 const apiBase = config.public.apiBase
