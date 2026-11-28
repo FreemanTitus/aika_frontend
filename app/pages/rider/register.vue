@@ -195,28 +195,52 @@ watch(selectedState, () => {
   form.value.base_location = ''
 })
 
-const handleGuarantorPassportChange = (event: Event) => {
-  const target = event.target as HTMLInputElement
-  const file = target.files?.[0] || null
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp']
 
+const clearGuarantorPassport = (input?: HTMLInputElement | null) => {
   if (guarantorPassportPreview.value) {
     URL.revokeObjectURL(guarantorPassportPreview.value)
     guarantorPassportPreview.value = null
   }
-
-  if (file) {
-    if (file.size > 5 * 1024 * 1024) {
-      errorText.value = "Guarantor passport photograph must be less than 5MB."
-      target.value = ''
-      form.value.guarantor_passport_photograph = null
-      return
-    }
-    errorText.value = null
-    form.value.guarantor_passport_photograph = file
-    guarantorPassportPreview.value = URL.createObjectURL(file)
-  } else {
-    form.value.guarantor_passport_photograph = null
+  if (input) {
+    input.value = ''
   }
+  form.value.guarantor_passport_photograph = null
+}
+
+const handleGuarantorPassportChange = (event: Event) => {
+  const target = event.target as HTMLInputElement | null
+  const file = target?.files?.[0] || null
+
+  if (!file) {
+    clearGuarantorPassport(target)
+    return
+  }
+
+  const lowerName = file.name.toLowerCase()
+  const hasValidExt = ALLOWED_EXTENSIONS.some(ext => lowerName.endsWith(ext))
+  const hasValidMime = ALLOWED_MIME_TYPES.includes(file.type.toLowerCase())
+
+  if (!hasValidExt || !hasValidMime) {
+    clearGuarantorPassport(target)
+    errorText.value = "Only JPG, JPEG, PNG, or WEBP image files are allowed."
+    return
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    clearGuarantorPassport(target)
+    errorText.value = "Guarantor passport photograph must be less than 5MB."
+    return
+  }
+
+  if (guarantorPassportPreview.value) {
+    URL.revokeObjectURL(guarantorPassportPreview.value)
+  }
+
+  errorText.value = null
+  form.value.guarantor_passport_photograph = file
+  guarantorPassportPreview.value = URL.createObjectURL(file)
 }
 
 const nextStep = () => {

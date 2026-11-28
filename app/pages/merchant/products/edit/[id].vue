@@ -1,6 +1,6 @@
 <!-- pages/merchant/inventory/edit/[id].vue -->
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter, useRoute, useCookie, useRuntimeConfig } from '#app'
 import {
   ArrowLeft,
@@ -36,6 +36,29 @@ const router = useRouter()
 const route = useRoute()
 const authToken = useCookie('auth_token')
 const product_id = route.params.id as string
+
+// Image Upload Validation Constraints (Aligned with backend validate_uploaded_image)
+const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp']
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024 // 5 MB
+
+const validateImageFile = (file: File): string | null => {
+  const lowerName = file.name.toLowerCase()
+  const hasValidExt = ALLOWED_IMAGE_EXTENSIONS.some(ext => lowerName.endsWith(ext))
+  const hasValidMime = ALLOWED_IMAGE_MIME_TYPES.includes(file.type.toLowerCase())
+
+  if (!hasValidExt || !hasValidMime) {
+    return 'Only JPG, JPEG, PNG, or WEBP image files are allowed.'
+  }
+
+  if (file.size <= 0 || file.size > MAX_IMAGE_SIZE_BYTES) {
+    return 'Image file must be less than 5MB.'
+  }
+
+  return null
+}
+
+const isBlobUrl = (url?: string | null) => typeof url === 'string' && url.startsWith('blob:')
 
 // Safe media URL helper fallback if not provided by an auto-imported composable
 const resolveMediaUrl = (path?: string | null): string => {
@@ -287,6 +310,17 @@ onMounted(async () => {
   }
 })
 
+onBeforeUnmount(() => {
+  if (isBlobUrl(primaryImagePreview.value)) {
+    URL.revokeObjectURL(primaryImagePreview.value!)
+  }
+  galleryImages.value.forEach(img => {
+    if (isBlobUrl(img.preview)) {
+      URL.revokeObjectURL(img.preview)
+    }
+  })
+})
+
 watch(() => form.value.sub_category_id, async (newSubId) => {
   if (isPageLoading.value) return
   const cleanId = String(newSubId || '').trim()
@@ -307,15 +341,47 @@ const addGalleryRowSlot = () => {
     is_existing: false
   })
 }
+
 const handleGalleryFileSelection = (event: Event, index: number) => {
-  const target = event.target as HTMLInputElement
-  if (target.files && target.files[0] && galleryImages.value[index]) {
-    const targetFile = target.files[0]
-    galleryImages.value[index].file = targetFile
-    galleryImages.value[index].preview = URL.createObjectURL(targetFile)
+  const target = event.target as HTMLInputElement | null
+  const file = target?.files?.[0] || null
+  const slot = galleryImages.value[index]
+
+  if (!slot) return
+
+  if (!file) {
+    if (isBlobUrl(slot.preview)) URL.revokeObjectURL(slot.preview)
+    slot.file = null
+    slot.preview = ''
+    return
   }
+
+  const validationError = validateImageFile(file)
+  if (validationError) {
+    errorMessage.value = validationError
+    if (isBlobUrl(slot.preview)) URL.revokeObjectURL(slot.preview)
+    slot.file = null
+    slot.preview = ''
+    if (target) target.value = ''
+    return
+  }
+
+  if (isBlobUrl(slot.preview)) {
+    URL.revokeObjectURL(slot.preview)
+  }
+
+  errorMessage.value = null
+  slot.file = file
+  slot.preview = URL.createObjectURL(file)
 }
-const removeGalleryItemRow = (index: number) => { galleryImages.value.splice(index, 1) }
+
+const removeGalleryItemRow = (index: number) => {
+  const slot = galleryImages.value[index]
+  if (isBlobUrl(slot?.preview)) {
+    URL.revokeObjectURL(slot!.preview)
+  }
+  galleryImages.value.splice(index, 1)
+}
 
 const addVariantOption = () => {
   if (variantOptions.value.length >= 2) return
@@ -359,12 +425,40 @@ const computeSKUMatrixGrid = () => {
   })
 }
 
-const handlePrimaryImageUpload = (event: Event) => {
-  const target = event.target as HTMLInputElement
-  if (target.files && target.files[0]) {
-    primaryImageFile.value = target.files[0]
-    primaryImagePreview.value = URL.createObjectURL(target.files[0])
+const clearPrimaryImage = (input?: HTMLInputElement | null) => {
+  if (isBlobUrl(primaryImagePreview.value)) {
+    URL.revokeObjectURL(primaryImagePreview.value!)
   }
+  primaryImagePreview.value = null
+  primaryImageFile.value = null
+  if (input) {
+    input.value = ''
+  }
+}
+
+const handlePrimaryImageUpload = (event: Event) => {
+  const target = event.target as HTMLInputElement | null
+  const file = target?.files?.[0] || null
+
+  if (!file) {
+    clearPrimaryImage(target)
+    return
+  }
+
+  const validationError = validateImageFile(file)
+  if (validationError) {
+    clearPrimaryImage(target)
+    errorMessage.value = validationError
+    return
+  }
+
+  if (isBlobUrl(primaryImagePreview.value)) {
+    URL.revokeObjectURL(primaryImagePreview.value!)
+  }
+
+  errorMessage.value = null
+  primaryImageFile.value = file
+  primaryImagePreview.value = URL.createObjectURL(file)
 }
 
 const handleUpdateProductSubmit = async () => {
@@ -691,7 +785,14 @@ const handleUpdateProductSubmit = async () => {
                   <img v-if="img.preview" :src="img.preview" class="w-full h-full object-cover" />
                   <template v-else>
                     <UploadCloud class="w-7 h-7 text-gray-400 mb-1" />
-                    <input @change="handleGalleryFileSelection($event, idx)" type="file" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+                    <span class="text-[10px] font-black text-gray-500">Upload Gallery Image</span>
+                    <span class="text-[9px] text-gray-400 font-medium mt-0.5">JPG, PNG, WEBP up to 5MB</span>
+                    <input
+                      @change="handleGalleryFileSelection($event, idx)"
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                      class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
                   </template>
                 </div>
                 <input v-model="img.caption" type="text" placeholder="Caption label (e.g., Side View)..." class="w-full bg-white border border-gray-200/80 rounded-xl px-3 py-2 text-[11px] font-semibold text-[#0A1128] focus:outline-none shadow-2xs" />
@@ -800,11 +901,18 @@ const handleUpdateProductSubmit = async () => {
             <div class="relative group border-2 border-dashed border-gray-200 hover:border-[#0A1128] rounded-2xl p-4 min-h-[180px] bg-gray-50/40 overflow-hidden flex flex-col items-center justify-center transition">
               <template v-if="primaryImagePreview">
                 <img :src="primaryImagePreview" class="absolute inset-0 w-full h-full object-cover animate-fade-in" />
-                <button @click="primaryImagePreview = null; primaryImageFile = null" type="button" class="absolute top-3 right-3 p-1.5 bg-black/70 rounded-xl text-white hover:bg-black transition z-10 shadow-sm border-0 outline-none"><X class="w-4 h-4" /></button>
+                <button @click="clearPrimaryImage()" type="button" class="absolute top-3 right-3 p-1.5 bg-black/70 rounded-xl text-white hover:bg-black transition z-10 shadow-sm border-0 outline-none cursor-pointer"><X class="w-4 h-4" /></button>
               </template>
               <template v-else>
                 <UploadCloud class="w-8 h-8 text-gray-400 mb-2" />
-                <input @change="handlePrimaryImageUpload" type="file" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+                <span class="text-xs font-black text-gray-600 text-center">Upload Primary Image Binary</span>
+                <span class="text-[10px] text-gray-400 font-medium mt-0.5">JPG, PNG, WEBP up to 5MB</span>
+                <input
+                  @change="handlePrimaryImageUpload"
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                  class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                />
               </template>
             </div>
           </div>
