@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Flame, Clock, Star, ArrowRight } from '@lucide/vue'
+import { Flame, Clock, Star, ArrowRight, Tag } from '@lucide/vue'
 
 // Define props coming from the parent (index.vue)
 const props = defineProps({
@@ -26,12 +26,45 @@ const filteredMeals = computed(() => {
   if (selectedCategory.value === 'All') return props.meals
   return props.meals.filter((item) => item.category === selectedCategory.value)
 })
+
+const getDisplayPrice = (food: any) => Number(food.current_price ?? food.price ?? 0)
+
+const isDiscountedBonanza = (food: any) => {
+  if (!food.bonanza_mode) return false
+  const original = Number(food.price ?? 0)
+  const current = getDisplayPrice(food)
+  return original > 0 && current < original
+}
+
+const getStoreItemUrl = (food: any) => {
+  const vendorId =
+    food?.vendor_id ??
+    food?.vendor?.id ??
+    food?.vendor_code ??
+    food?.store_code ??
+    food?.vendor?.vendor_code ??
+    food?.vendor?.code ??
+    food?.vendor?.store_code ??
+    food?.vendor_slug ??
+    food?.vendor?.store_slug
+
+  if (!vendorId) {
+    return '/marketplace'
+  }
+
+  const basePath = `/store/${encodeURIComponent(String(vendorId))}`
+  if (food?.id != null && String(food.id).trim() !== '') {
+    return `${basePath}?item=${encodeURIComponent(String(food.id))}`
+  }
+
+  return basePath
+}
 </script>
 
 <template>
   <section id="featured-foods" class="py-16 md:py-24 bg-gray-50/70 border-b border-gray-100">
-    <div class="max-w-6xl mx-auto px-6">
-      <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+    <div class="max-w-6xl mx-auto px-3.5 sm:px-6">
+      <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 sm:mb-10">
         <div class="space-y-2">
           <span class="inline-flex items-center gap-1.5 text-[10px] font-black tracking-widest uppercase text-[#0A1128] bg-[#D4F53C] px-3.5 py-1 rounded-full">
             <Flame class="w-3.5 h-3.5" /> Hot Right Now
@@ -76,46 +109,68 @@ const filteredMeals = computed(() => {
         <p class="text-sm font-bold text-gray-400">No featured meals available right now. Check back soon!</p>
       </div>
 
-      <!-- Food Cards Grid -->
-      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Food Cards Grid (2 columns on mobile, 3 columns on large screens) -->
+      <div v-else class="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
         <NuxtLink
           v-for="food in filteredMeals"
           :key="food.id"
-          :to="`/marketplace?vendor=${food.vendor_id}`"
-          class="group bg-white rounded-[28px] border border-gray-100 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between no-underline text-[#0A1128]"
+          :to="getStoreItemUrl(food)"
+          :class="food.bonanza_mode ? 'ring-2 ring-rose-500/70 border-rose-200' : 'border-gray-100'"
+          class="group bg-white rounded-2xl sm:rounded-[28px] border overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between no-underline text-[#0A1128]"
         >
           <div>
-            <div class="relative h-52 overflow-hidden bg-gray-100">
+            <div class="relative h-32 sm:h-52 overflow-hidden bg-gray-100">
               <img
                 :src="getMediaUrl(food.image) || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800&auto=format&fit=crop'"
                 :alt="food.name"
                 class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
-              <span class="absolute top-3.5 left-3.5 bg-[#0A1128]/90 backdrop-blur-md text-[#D4F53C] text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full">
-                {{ food.badge }}
-              </span>
-              <span class="absolute bottom-3 right-3 bg-white/95 backdrop-blur-md text-[#0A1128] text-[11px] font-extrabold px-2.5 py-1 rounded-xl shadow-sm flex items-center gap-1">
-                <Clock class="w-3 h-3 text-emerald-600" /> {{ food.prep_minutes }} mins
+              <div class="absolute top-2 left-2 sm:top-3.5 sm:left-3.5 flex flex-wrap items-center gap-1 sm:gap-1.5">
+                <span class="bg-[#0A1128]/90 backdrop-blur-md text-[#D4F53C] text-[8px] sm:text-[10px] font-black uppercase tracking-wider px-2 py-0.5 sm:px-3 sm:py-1 rounded-full">
+                  {{ food.badge }}
+                </span>
+                <span
+                  v-if="food.bonanza_mode"
+                  class="inline-flex items-center gap-0.5 sm:gap-1 bg-rose-600 text-white text-[8px] sm:text-[10px] font-black uppercase tracking-wider px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full shadow-xs"
+                >
+                  <Tag class="w-2.5 h-2.5 sm:w-3 sm:h-3" /> Bonanza
+                </span>
+              </div>
+              <span class="absolute bottom-2 right-2 sm:bottom-3 sm:right-3 bg-white/95 backdrop-blur-md text-[#0A1128] text-[9px] sm:text-[11px] font-extrabold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl shadow-sm flex items-center gap-1">
+                <Clock class="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-600" /> {{ food.prep_minutes }}m
               </span>
             </div>
 
-            <div class="p-5 space-y-2">
-              <div class="flex items-center justify-between text-xs font-bold text-gray-400">
-                <span>{{ food.vendor_name }}</span>
-                <span class="inline-flex items-center gap-1 text-[#0A1128] font-black">
-                  <Star class="w-3.5 h-3.5 text-amber-400 fill-amber-400" /> {{ food.vendor_rating.toFixed(1) }}
+            <div class="p-3 sm:p-5 space-y-1 sm:space-y-2">
+              <div class="flex items-center justify-between gap-1 text-[10px] sm:text-xs font-bold text-gray-400">
+                <span class="truncate">{{ food.vendor_name }}</span>
+                <span class="inline-flex items-center gap-0.5 sm:gap-1 text-[#0A1128] font-black shrink-0">
+                  <Star class="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 fill-amber-400" /> {{ food.vendor_rating.toFixed(1) }}
                 </span>
               </div>
-              <h3 class="text-base font-black text-[#0A1128] group-hover:text-emerald-700 transition line-clamp-1">
+              <h3 class="text-xs sm:text-base font-black text-[#0A1128] group-hover:text-emerald-700 transition line-clamp-1">
                 {{ food.name }}
               </h3>
             </div>
           </div>
 
-          <div class="px-5 pb-5 pt-2 flex items-center justify-between border-t border-gray-50">
-            <span class="text-lg font-black text-[#0A1128] font-mono">₦{{ food.price.toLocaleString() }}</span>
-            <span class="bg-[#D4F53C] group-hover:bg-[#0A1128] text-[#0A1128] group-hover:text-[#D4F53C] text-xs font-black px-4 py-2 rounded-xl transition inline-flex items-center gap-1.5">
-              Order <ArrowRight class="w-3.5 h-3.5" />
+          <div class="px-3 pb-3 pt-2 sm:px-5 sm:pb-5 sm:pt-2 flex items-center justify-between gap-1.5 border-t border-gray-50">
+            <div class="flex flex-col min-w-0">
+              <span
+                :class="food.bonanza_mode ? 'text-rose-600' : 'text-[#0A1128]'"
+                class="text-sm sm:text-lg font-black font-mono leading-none truncate"
+              >
+                ₦{{ getDisplayPrice(food).toLocaleString() }}
+              </span>
+              <span
+                v-if="isDiscountedBonanza(food)"
+                class="text-[10px] sm:text-xs font-bold text-gray-400 line-through font-mono mt-0.5 truncate"
+              >
+                ₦{{ Number(food.price).toLocaleString() }}
+              </span>
+            </div>
+            <span class="bg-[#D4F53C] group-hover:bg-[#0A1128] text-[#0A1128] group-hover:text-[#D4F53C] text-[10px] sm:text-xs font-black px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl transition inline-flex items-center gap-1 sm:gap-1.5 shrink-0">
+              Order <ArrowRight class="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             </span>
           </div>
         </NuxtLink>

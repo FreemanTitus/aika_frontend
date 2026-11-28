@@ -15,7 +15,11 @@ import {
   CheckCircle2,
   AlertTriangle,
   RefreshCw,
-  ArrowLeft
+  ArrowLeft,
+  X,
+  Plus,
+  Minus,
+  Trash2
 } from '@lucide/vue'
 import { useCart } from '~/composables/useCart'
 import VendorRecommendations from '~/components/VendorRecommendations.vue'
@@ -123,7 +127,7 @@ const fetchStoreData = async () => {
 
     await scrollToHighlightedItem()
   } catch (err) {
-    console.error("Store resolution error:", err)
+    console.error('Store resolution error:', err)
     error.value = true
   } finally {
     pending.value = false
@@ -239,28 +243,33 @@ const closeMenuModal = (): void => {
 const confirmMenuOption = (): void => {
   dispatchAddToCart(selectedMenuItem.value, activeSelectedOption.value)
 }
+
+const goToCheckout = () => {
+  isCartDrawerOpen.value = false
+  router.push('/checkout')
+}
 </script>
 
 <template>
   <div class="relative min-h-screen bg-[#F8FAFC] pb-24 text-left font-sans selection:bg-[#D4F53C] selection:text-[#0A1128]">
 
     <!-- ===================== LOADING SKELETON ===================== -->
-    <div v-if="pending && !storePayload" class="mx-auto max-w-7xl space-y-6 px-4 pt-5 sm:px-6" aria-busy="true" aria-label="Loading storefront">
+    <div v-if="pending && !storePayload" class="mx-auto max-w-7xl space-y-6 px-3.5 pt-5 sm:px-6" aria-busy="true" aria-label="Loading storefront">
       <div class="shimmer h-44 w-full rounded-3xl sm:h-60"></div>
       <div class="space-y-3">
         <div class="shimmer h-7 w-64 rounded-lg"></div>
         <div class="shimmer h-4 w-80 max-w-full rounded-md"></div>
       </div>
       <div class="shimmer h-12 w-72 rounded-2xl"></div>
-      <div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-        <div v-for="n in 8" :key="n" class="overflow-hidden rounded-3xl border border-gray-200 bg-white">
+      <div class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+        <div v-for="n in 8" :key="n" class="overflow-hidden rounded-2xl sm:rounded-3xl border border-gray-200 bg-white">
           <div class="shimmer aspect-square w-full"></div>
-          <div class="space-y-3 p-4">
-            <div class="shimmer h-5 w-20 rounded-full"></div>
+          <div class="space-y-2.5 p-3 sm:p-4">
+            <div class="shimmer h-4 sm:h-5 w-16 sm:w-20 rounded-full"></div>
             <div class="shimmer h-4 w-full rounded-md"></div>
             <div class="flex items-center justify-between pt-2">
-              <div class="shimmer h-5 w-16 rounded-md"></div>
-              <div class="shimmer h-10 w-10 rounded-xl"></div>
+              <div class="shimmer h-4 sm:h-5 w-14 sm:w-16 rounded-md"></div>
+              <div class="shimmer h-8 w-8 sm:h-10 sm:w-10 rounded-xl"></div>
             </div>
           </div>
         </div>
@@ -298,7 +307,7 @@ const confirmMenuOption = (): void => {
     <div v-else>
 
       <!-- ===================== COMPACT STORE HEADER ===================== -->
-      <div class="mx-auto max-w-7xl px-4 pt-5 sm:px-6">
+      <div class="mx-auto max-w-7xl px-3.5 pt-5 sm:px-6">
         <NuxtLink
           to="/marketplace"
           class="mb-3 inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 no-underline transition-colors hover:text-[#0A1128]"
@@ -361,7 +370,7 @@ const confirmMenuOption = (): void => {
       </div>
 
       <!-- ===================== STORE CLOSED NOTICE ===================== -->
-      <div v-if="!storePayload.is_currently_open" class="mx-auto mt-10 max-w-7xl px-4 sm:px-6">
+      <div v-if="!storePayload.is_currently_open" class="mx-auto mt-10 max-w-7xl px-3.5 sm:px-6">
         <div class="mx-auto max-w-2xl space-y-6 rounded-3xl border border-rose-100 bg-white p-8 text-center sm:p-14">
           <div class="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-rose-50 text-rose-600">
             <Clock class="h-10 w-10 stroke-[2.5]" />
@@ -385,7 +394,7 @@ const confirmMenuOption = (): void => {
 
         <!-- Sticky tabs + mobile category chips -->
         <div class="sticky top-0 z-30 mt-6 border-y border-gray-200 bg-white/95 backdrop-blur-md">
-          <div class="mx-auto max-w-7xl space-y-2.5 px-4 py-3 sm:px-6">
+          <div class="mx-auto max-w-7xl space-y-2.5 px-3.5 py-3 sm:px-6">
             <div role="tablist" class="flex max-w-sm items-center gap-1 rounded-2xl border border-gray-200 bg-gray-100 p-1">
               <button
                 role="tab"
@@ -416,7 +425,7 @@ const confirmMenuOption = (): void => {
             <!-- Mobile category chips (sidebar is desktop-only) -->
             <div
               v-if="activeTab === 'catalog' && categoryList.length > 0"
-              class="no-scrollbar -mx-4 flex items-center gap-2 overflow-x-auto px-4 lg:hidden"
+              class="no-scrollbar -mx-3.5 flex items-center gap-2 overflow-x-auto px-3.5 lg:hidden"
             >
               <button
                 @click="filterSubcategory(null)"
@@ -438,7 +447,7 @@ const confirmMenuOption = (): void => {
           </div>
         </div>
 
-        <div class="mx-auto mt-6 max-w-7xl px-4 sm:px-6">
+        <div class="mx-auto mt-6 max-w-7xl px-3.5 sm:px-6">
 
           <!-- Brand bio (e-commerce) -->
           <div
@@ -491,14 +500,14 @@ const confirmMenuOption = (): void => {
               :class="pending ? 'pointer-events-none opacity-60' : ''"
             >
 
-              <!-- E-Commerce grid -->
+              <!-- E-Commerce grid (2 cols on mobile, 3 cols on md+) -->
               <div v-if="storePayload.business_type === 'e_commerce'">
-                <div v-if="storePayload.products.length > 0" class="grid grid-cols-2 gap-4 md:grid-cols-3">
+                <div v-if="storePayload.products.length > 0" class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
                   <div
                     v-for="item in storePayload.products"
                     :key="item.id"
                     :id="`store-item-${item.id}`"
-                    :class="highlightedItemId && String(item.id) === highlightedItemId ? 'rounded-3xl ring-2 ring-[#D4F53C] ring-offset-2' : ''"
+                    :class="highlightedItemId && String(item.id) === highlightedItemId ? 'rounded-2xl sm:rounded-3xl ring-2 ring-[#D4F53C] ring-offset-2' : ''"
                     class="transition-all duration-300"
                   >
                     <MarketplaceStoreProductCard
@@ -521,18 +530,18 @@ const confirmMenuOption = (): void => {
                 </div>
               </div>
 
-              <!-- Restaurant menu -->
+              <!-- Restaurant menu (2 cols on mobile & md+) -->
               <div v-else class="w-full space-y-10 text-left">
                 <section
                   v-for="(products, menuCategoryName) in storePayload.menu_categories"
                   :key="menuCategoryName"
-                  class="space-y-4"
+                  class="space-y-3.5 sm:space-y-4"
                 >
                   <h2 class="flex items-center justify-between border-b border-gray-200 pb-3 text-base font-extrabold tracking-tight text-[#0A1128]">
                     <span>{{ menuCategoryName }}</span>
                   </h2>
 
-                  <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div class="grid grid-cols-2 gap-2.5 sm:gap-4">
                     <div
                       v-for="item in products"
                       :key="item.id"
@@ -624,22 +633,106 @@ const confirmMenuOption = (): void => {
       <!-- FLOATING MOBILE CART BAR -->
       <Transition name="slide-up">
         <div v-if="cartItemCount > 0" class="fixed inset-x-0 bottom-4 z-40 px-4 sm:hidden">
-          <div class="flex items-center justify-between rounded-2xl bg-[#0A1128] px-5 py-3.5 text-white shadow-2xl border border-white/10 backdrop-blur-md">
+          <div class="flex items-center justify-between rounded-2xl border border-white/10 bg-[#0A1128] px-5 py-3.5 text-white shadow-2xl backdrop-blur-md">
             <div class="flex items-center gap-3">
               <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-[#D4F53C] text-xs font-black text-[#0A1128]">
                 {{ cartItemCount }}
               </div>
               <div>
                 <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Total Items</p>
-                <p class="text-sm font-black text-[#D4F53C]">₦{{ cartTotal.toLocaleString() }}</p>
+                <p class="text-sm font-black text-[#D4F53C]">₦{{ Number(cartTotal || 0).toLocaleString() }}</p>
               </div>
             </div>
             <button
+              type="button"
               @click="isCartDrawerOpen = true"
-              class="cursor-pointer rounded-xl bg-[#D4F53C] px-5 py-2.5 text-xs font-black uppercase tracking-wider text-[#0A1128] transition-transform active:scale-95 border-0"
+              class="cursor-pointer rounded-xl border-0 bg-[#D4F53C] px-5 py-2.5 text-xs font-black uppercase tracking-wider text-[#0A1128] transition-transform active:scale-95"
             >
               View Cart
             </button>
+          </div>
+        </div>
+      </Transition>
+
+      <!-- MOBILE CART DRAWER -->
+      <Transition name="fade">
+        <div
+          v-if="isCartDrawerOpen"
+          class="fixed inset-0 z-50 flex items-end justify-center bg-[#0A1128]/70 backdrop-blur-xs sm:hidden"
+          @click.self="isCartDrawerOpen = false"
+        >
+          <div class="flex max-h-[82vh] w-full flex-col rounded-t-3xl bg-white p-5 text-[#0A1128] shadow-2xl">
+            <div class="flex items-center justify-between border-b border-gray-100 pb-3.5">
+              <div>
+                <h3 class="text-base font-black">Your Order Bag</h3>
+                <p class="text-[11px] font-semibold text-gray-400">{{ cartItemCount }} item(s)</p>
+              </div>
+              <button
+                type="button"
+                @click="isCartDrawerOpen = false"
+                aria-label="Close cart"
+                class="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl border-0 bg-gray-100 text-gray-600"
+              >
+                <X class="h-4 w-4" />
+              </button>
+            </div>
+
+            <div class="my-3 flex-1 space-y-3 overflow-y-auto">
+              <div
+                v-for="entry in cartItems"
+                :key="entry.id"
+                class="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3"
+              >
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-xs font-extrabold text-[#0A1128]">{{ entry.name }}</p>
+                  <p class="text-[11px] font-bold text-gray-500">
+                    ₦{{ (Number(entry.price ?? 0) * Number(entry.quantity ?? 1)).toLocaleString() }}
+                  </p>
+                </div>
+
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    @click="updateQuantity(entry.id, 'decrement')"
+                    aria-label="Decrease quantity"
+                    class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white text-[#0A1128]"
+                  >
+                    <Minus class="h-3 w-3" />
+                  </button>
+                  <span class="min-w-[1.25rem] text-center text-xs font-black">{{ entry.quantity }}</span>
+                  <button
+                    type="button"
+                    @click="updateQuantity(entry.id, 'increment')"
+                    aria-label="Increase quantity"
+                    class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white text-[#0A1128]"
+                  >
+                    <Plus class="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    @click="removeFromCart(entry.id)"
+                    aria-label="Remove item"
+                    class="ml-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border-0 bg-rose-50 text-rose-600"
+                  >
+                    <Trash2 class="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-3 border-t border-gray-100 pt-3.5">
+              <div class="flex items-center justify-between text-sm font-black">
+                <span>Subtotal</span>
+                <span>₦{{ Number(cartTotal || 0).toLocaleString() }}</span>
+              </div>
+              <button
+                type="button"
+                @click="goToCheckout"
+                class="w-full cursor-pointer rounded-2xl border-0 bg-[#0A1128] py-3.5 text-xs font-black uppercase tracking-wider text-[#D4F53C]"
+              >
+                Proceed to Checkout
+              </button>
+            </div>
           </div>
         </div>
       </Transition>

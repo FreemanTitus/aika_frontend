@@ -1,16 +1,22 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter, useRuntimeConfig, useCookie } from '#app'
-import { 
-  ChevronRight, 
-  Flame, 
-  PackageOpen, 
+import {
+  ChevronRight,
+  Flame,
+  PackageOpen,
   AlertCircle,
-  ShoppingBag, 
+  ShoppingBag,
   Loader2,
   X,
   Layers3,
-  ArrowRight
+  ArrowRight,
+  ArrowLeft,
+  Store,
+  CheckCircle2,
+  Minus,
+  Plus,
+  ZoomIn
 } from '@lucide/vue'
 import { useCart } from '~/composables/useCart'
 
@@ -18,7 +24,7 @@ definePageMeta({
   layout: 'marketplace'
 })
 
-const { cartItems, addToCart, updateQuantity, clearCart } = useCart()
+const { cartItems, addToCart, clearCart } = useCart()
 
 const config = useRuntimeConfig()
 const apiBase = config.public.apiBase
@@ -38,6 +44,7 @@ const orderQuantity = ref<number>(1)
 const activeMainImage = ref<string>('')
 const selectedOptions = ref<Record<string, string>>({})
 const validationErrorMessage = ref<string | null>(null)
+const addedFeedback = ref<boolean>(false)
 
 // Lightbox modal toggle state management
 const isLightboxOpen = ref<boolean>(false)
@@ -54,7 +61,8 @@ const fetchProductData = async () => {
   error.value = false
   orderQuantity.value = 1
   selectedOptions.value = {}
-  
+  validationErrorMessage.value = null
+
   const currentId = getProductId()
   productId.value = currentId
   const authToken = useCookie('auth_token')
@@ -76,19 +84,17 @@ const fetchProductData = async () => {
       sku_matrix: rawData.sku_matrix || []
     }
   } catch (err) {
-    console.error("Product detail resolution error:", err)
+    console.error('Product detail resolution error:', err)
     error.value = true
   } finally {
     pending.value = false
   }
 }
 
-// Trigger fetch immediately when component mounts
 onMounted(() => {
   fetchProductData()
 })
 
-// Watch for route changes to dynamically fetch new product data on client-side navigation
 watch(
   () => route.params.id,
   () => {
@@ -100,7 +106,7 @@ watch(
 const parsedKeyFeatures = computed(() => {
   const rawFeatures = payload.value?.product?.key_features
   if (!rawFeatures) return []
-  
+
   if (typeof rawFeatures === 'string') {
     try {
       return JSON.parse(rawFeatures) as Array<{ title: string; value: string }>
@@ -112,29 +118,39 @@ const parsedKeyFeatures = computed(() => {
 })
 
 // Initialize values on payload lifecycle arrival
-watch(() => payload.value?.product, (newProduct) => {
-  if (newProduct?.image) {
-    activeMainImage.value = getMediaUrl(newProduct.image) || ''
-  } else {
-    activeMainImage.value = ''
-  }
-}, { immediate: true })
+watch(
+  () => payload.value?.product,
+  (newProduct) => {
+    if (newProduct?.image) {
+      activeMainImage.value = getMediaUrl(newProduct.image) || ''
+    } else {
+      activeMainImage.value = ''
+    }
+  },
+  { immediate: true }
+)
 
 // Pre-select first variant options if present to keep UX clean
-watch(() => payload.value?.variant_options, (options) => {
-  if (options && options.length > 0) {
-    options.forEach((opt: any) => {
-      if (opt.values && opt.values.length > 0) {
-        selectedOptions.value[opt.name] = opt.values[0].value_text
-      }
-    })
-  }
-}, { immediate: true })
+watch(
+  () => payload.value?.variant_options,
+  (options) => {
+    if (options && options.length > 0) {
+      const nextSelected: Record<string, string> = {}
+      options.forEach((opt: any) => {
+        if (opt.values && opt.values.length > 0) {
+          nextSelected[opt.name] = opt.values[0].value_text
+        }
+      })
+      selectedOptions.value = nextSelected
+    }
+  },
+  { immediate: true }
+)
 
 // TYPE-AGNOSTIC MULTI-DIMENSIONAL MATRICES LOOKUP ENGINE
 const matchedSkuItem = computed(() => {
   if (!payload.value || !payload.value.sku_matrix || payload.value.sku_matrix.length === 0) return null
-  
+
   const options = payload.value.variant_options
   if (!options || options.length === 0) return null
 
@@ -145,8 +161,8 @@ const matchedSkuItem = computed(() => {
     const selectedText = selectedOptions.value[option.name]
     if (!selectedText) continue
 
-    const matchedValueObj = option.values.find((v: any) => 
-      String(v.value_text).trim().toLowerCase() === String(selectedText).trim().toLowerCase()
+    const matchedValueObj = option.values.find(
+      (v: any) => String(v.value_text).trim().toLowerCase() === String(selectedText).trim().toLowerCase()
     )
     if (matchedValueObj) {
       targetValueIds.push(Number(matchedValueObj.value_id))
@@ -158,7 +174,7 @@ const matchedSkuItem = computed(() => {
   const standardMatch = payload.value.sku_matrix.find((sku: any) => {
     if (!sku.value_ids || sku.value_ids.length === 0) return false
     const normalizedMatrixIds = sku.value_ids.map((id: any) => Number(id))
-    return targetValueIds.every(id => normalizedMatrixIds.includes(id))
+    return targetValueIds.every((id) => normalizedMatrixIds.includes(id))
   })
 
   if (standardMatch) return standardMatch
@@ -204,7 +220,7 @@ const currentUnitPrice = computed(() => {
     }
     return parseFloat(payload.value.product?.current_price || payload.value.product?.base_price || 0)
   }
-  
+
   if (payload.value?.product) {
     return parseFloat(payload.value.product.current_price || payload.value.product.base_price || 0)
   }
@@ -227,6 +243,20 @@ const isSkuAvailable = computed(() => {
   return true
 })
 
+const canPurchase = computed(() => {
+  return (
+    isSkuAvailable.value &&
+    currentUnitPrice.value > 0 &&
+    !(payload.value?.variant_options?.length > 0 && !matchedSkuItem.value)
+  )
+})
+
+const vendorStoreUrl = computed(() => {
+  const vendor = payload.value?.product?.vendor
+  const target = vendor?.id || payload.value?.product?.vendor_id
+  return target ? `/marketplace/store/${encodeURIComponent(String(target))}` : '/marketplace'
+})
+
 // 6. Action Handlers
 const adjustQty = (change: number): void => {
   const nextVal = orderQuantity.value + change
@@ -236,7 +266,11 @@ const adjustQty = (change: number): void => {
 }
 
 const selectVariantValue = (optionName: string, valueText: string): void => {
-  selectedOptions.value[optionName] = valueText
+  selectedOptions.value = {
+    ...selectedOptions.value,
+    [optionName]: valueText
+  }
+  validationErrorMessage.value = null
 }
 
 const updateMainStageViewer = (imageUrl: string): void => {
@@ -260,23 +294,22 @@ onMounted(() => window.addEventListener('keydown', handleKeyDown))
 onBeforeUnmount(() => window.removeEventListener('keydown', handleKeyDown))
 
 const formatCurrency = (value: number): string => {
-  return "₦" + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return '₦' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-// SYNC SELECTED PRODUCT, VARIANT & QUANTITY INTO CART AND PROCEED TO CHECKOUT
-const handleProceedToCheckoutRoute = async (): Promise<void> => {
+const prepareCartItem = async () => {
   validationErrorMessage.value = null
 
   const product = payload.value?.product
-  if (!product) return
+  if (!product) return null
 
   const rootProductCode = product.id || productId.value
   let selectedVariantId: string | number | null = null
-  
+
   if (payload.value?.variant_options && payload.value.variant_options.length > 0) {
     if (!matchedSkuItem.value) {
-      validationErrorMessage.value = "Please select a valid variant option configuration swathe first."
-      return
+      validationErrorMessage.value = 'Please select a valid variant option combination first.'
+      return null
     }
     selectedVariantId = matchedSkuItem.value.id
   }
@@ -284,16 +317,21 @@ const handleProceedToCheckoutRoute = async (): Promise<void> => {
   const variantLabel = Object.values(selectedOptions.value).filter(Boolean).join(' / ')
   const displayName = variantLabel ? `${product.name} (${variantLabel})` : product.name
   const checkoutItemId = selectedVariantId ? String(selectedVariantId) : String(rootProductCode)
-  const vendorId = String(product.vendor?.id || '')
+  const vendorId = String(product.vendor?.id || product.vendor_id || '')
   const vendorName = product.vendor?.company_name || 'Vendor'
 
-  // Ensure single-vendor cart consistency before adding direct checkout item
   if (cartItems.value.length > 0 && cartItems.value[0]?.storeId && String(cartItems.value[0].storeId) !== vendorId) {
     await clearCart()
   }
 
-  await addToCart(
-    {
+  return {
+    rootProductCode,
+    selectedVariantId,
+    checkoutItemId,
+    displayName,
+    vendorId,
+    vendorName,
+    cartPayload: {
       id: checkoutItemId,
       productId: String(rootProductCode),
       variantId: selectedVariantId ? String(selectedVariantId) : undefined,
@@ -302,9 +340,39 @@ const handleProceedToCheckoutRoute = async (): Promise<void> => {
       current_price: currentUnitPrice.value,
       bonanza_mode: false,
       image: activeMainImage.value || product.image || ''
-    },
-    vendorId,
-    vendorName,
+    }
+  }
+}
+
+const handleAddToCartOnly = async (): Promise<void> => {
+  if (!canPurchase.value) return
+  const prepared = await prepareCartItem()
+  if (!prepared) return
+
+  await addToCart(
+    prepared.cartPayload,
+    prepared.vendorId,
+    prepared.vendorName,
+    orderQuantity.value,
+    false
+  )
+
+  addedFeedback.value = true
+  setTimeout(() => {
+    addedFeedback.value = false
+  }, 1800)
+}
+
+// SYNC SELECTED PRODUCT, VARIANT & QUANTITY INTO CART AND PROCEED TO CHECKOUT
+const handleProceedToCheckoutRoute = async (): Promise<void> => {
+  if (!canPurchase.value) return
+  const prepared = await prepareCartItem()
+  if (!prepared) return
+
+  await addToCart(
+    prepared.cartPayload,
+    prepared.vendorId,
+    prepared.vendorName,
     orderQuantity.value,
     true
   )
@@ -312,261 +380,425 @@ const handleProceedToCheckoutRoute = async (): Promise<void> => {
   router.push({
     path: '/marketplace/checkout',
     query: {
-      item_id: String(rootProductCode).trim(), 
-      variant_item_id: selectedVariantId ? String(selectedVariantId) : '',
+      item_id: String(prepared.rootProductCode).trim(),
+      variant_item_id: prepared.selectedVariantId ? String(prepared.selectedVariantId) : '',
       qty: String(orderQuantity.value),
-      vendor_id: vendorId,
+      vendor_id: prepared.vendorId,
       is_variant: payload.value?.variant_options?.length > 0 ? 'true' : 'false'
     }
   })
 }
-
 </script>
 
 <template>
-  <main class="bg-gray-50/50 min-h-screen py-12 px-4 font-sans text-left selection:bg-[#D4F53C] selection:text-[#0A1128]">
-    <div v-if="pending" class="max-w-5xl mx-auto py-24 text-center">
-      <Loader2 class="w-10 h-10 animate-spin text-[#0A1128] mx-auto stroke-[2.5]" />
-      <p class="text-gray-400 text-xs font-black uppercase tracking-widest mt-4">Assembling product configuration sheets...</p>
+  <main class="min-h-screen bg-[#F8FAFC] px-3.5 py-6 text-left font-sans text-[#0A1128] selection:bg-[#D4F53C] selection:text-[#0A1128] sm:px-6 sm:py-10">
+    <!-- Loading State -->
+    <div v-if="pending" class="mx-auto max-w-6xl py-24 text-center" aria-busy="true">
+      <div class="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <Loader2 class="h-7 w-7 animate-spin stroke-[2.5] text-[#0A1128]" />
+      </div>
+      <p class="mt-4 text-xs font-extrabold uppercase tracking-widest text-gray-400">
+        Loading product details...
+      </p>
     </div>
 
-    <div v-else-if="error || !payload?.product" class="max-w-md mx-auto py-16 text-center">
-      <div class="bg-white p-8 rounded-[32px] shadow-xl border border-gray-100 flex flex-col items-center">
-        <AlertCircle class="w-12 h-12 text-rose-500 mb-4" />
-        <h2 class="text-xl font-black text-[#0A1128]">Asset Resolution Error</h2>
-        <p class="text-gray-500 text-sm mt-2 font-medium leading-relaxed">The item parameter trace requested cannot be extracted or verified by regional delivery hubs.</p>
-        <NuxtLink to="/marketplace" class="mt-6 bg-[#0A1128] text-white font-black px-6 py-2.5 rounded-xl text-xs transition uppercase tracking-wider shadow-sm">Back to Market</NuxtLink>
+    <!-- Error State -->
+    <div v-else-if="error || !payload?.product" class="mx-auto max-w-md py-16 text-center">
+      <div class="flex flex-col items-center rounded-3xl border border-gray-200 bg-white p-8 shadow-sm">
+        <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
+          <AlertCircle class="h-7 w-7" />
+        </div>
+        <h2 class="text-lg font-black text-[#0A1128]">Product Not Found</h2>
+        <p class="mt-2 text-xs font-medium leading-relaxed text-gray-500">
+          We couldn't load this product right now. It may have been removed or is temporarily unavailable.
+        </p>
+        <NuxtLink
+          to="/marketplace"
+          class="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#0A1128] px-6 py-3 text-xs font-extrabold uppercase tracking-wider text-[#D4F53C] no-underline transition hover:bg-[#16224a]"
+        >
+          <ArrowLeft class="h-3.5 w-3.5" />
+          Back to Marketplace
+        </NuxtLink>
       </div>
     </div>
 
-    <div v-else class="max-w-5xl mx-auto bg-white rounded-[32px] border border-gray-100 p-6 sm:p-10 shadow-2xl relative overflow-hidden">
-      <div class="mb-8 flex items-center space-x-2 text-xs font-black uppercase tracking-wider text-gray-400 pl-1">
-        <NuxtLink to="/marketplace" class="hover:text-emerald-700 transition">Market</NuxtLink>
-        <ChevronRight class="w-3 h-3 text-gray-300" />
-        <span class="hover:text-emerald-700 transition">
-          {{ payload.product.vendor?.company_name }}
-        </span>
-        <ChevronRight class="w-3 h-3 text-gray-300" />
-        <span class="text-[#0A1128] max-w-[160px] sm:max-w-xs truncate block font-black">{{ payload.product.name }}</span>
+    <!-- Product Detail Container -->
+    <div v-else class="mx-auto max-w-6xl space-y-5">
+      <!-- Top Breadcrumb & Back Link -->
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-1.5 text-xs font-bold text-gray-400">
+          <NuxtLink to="/marketplace" class="text-gray-500 no-underline transition hover:text-[#0A1128]">
+            Marketplace
+          </NuxtLink>
+          <ChevronRight class="h-3.5 w-3.5 text-gray-300" />
+          <NuxtLink
+            v-if="payload.product.vendor?.company_name"
+            :to="vendorStoreUrl"
+            class="max-w-[140px] truncate text-gray-500 no-underline transition hover:text-[#0A1128] sm:max-w-[200px]"
+          >
+            {{ payload.product.vendor.company_name }}
+          </NuxtLink>
+          <ChevronRight v-if="payload.product.vendor?.company_name" class="h-3.5 w-3.5 text-gray-300" />
+          <span class="max-w-[180px] truncate font-extrabold text-[#0A1128] sm:max-w-xs">
+            {{ payload.product.name }}
+          </span>
+        </nav>
+
+        <NuxtLink
+          :to="vendorStoreUrl"
+          class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 py-1.5 text-xs font-extrabold text-[#0A1128] no-underline transition hover:border-[#0A1128]/30 hover:bg-gray-50"
+        >
+          <Store class="h-3.5 w-3.5 text-emerald-700" />
+          <span>Visit Store</span>
+        </NuxtLink>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
-        <div class="space-y-4">
-          <div class="aspect-square w-full rounded-[24px] bg-gray-50 border border-gray-100 overflow-hidden relative shadow-inner">
-            <div v-if="payload.product.bonanza_mode && payload.product.discount_percentage > 0" class="absolute top-4 left-4 z-10 bg-rose-600 text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg shadow-md flex items-center space-x-1 animate-pulse">
-              <Flame class="w-3 h-3 fill-white" />
-              <span>-{{ payload.product.discount_percentage }}% Bonanza</span>
-            </div>
-            
-            <img 
-              v-if="activeMainImage" 
-              :src="activeMainImage" 
-              @click="openLightboxPortal(activeMainImage)" 
-              :alt="payload.product.name" 
-              class="w-full h-full object-cover cursor-zoom-in hover:opacity-95 transition-all duration-300 animate-fade-in"
+      <!-- Main Product Card -->
+      <div class="grid grid-cols-1 gap-8 rounded border border-gray-200/90 bg-white p-4 shadow-sm sm:p-8 lg:grid-cols-12 lg:gap-10">
+        <!-- Left: Media Stage & Thumbnails -->
+        <div class="space-y-3.5 lg:col-span-6">
+          <div class="group relative aspect-square w-full overflow-hidden rounded-2xl border border-gray-100 bg-gray-50 sm:rounded-3xl">
+            <div
+              v-if="payload.product.bonanza_mode && payload.product.discount_percentage > 0"
+              class="absolute left-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-rose-600 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-white shadow-sm"
             >
-            <div v-else class="w-full h-full flex items-center justify-center bg-gray-100 text-gray-300">
-              <PackageOpen class="w-12 h-12" />
+              <Flame class="h-3 w-3 fill-white" />
+              <span>-{{ payload.product.discount_percentage }}% Off</span>
+            </div>
+
+            <button
+              v-if="activeMainImage"
+              type="button"
+              @click="openLightboxPortal(activeMainImage)"
+              aria-label="Zoom product image"
+              class="absolute bottom-3 right-3 z-10 inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-gray-200/80 bg-white/90 text-[#0A1128] backdrop-blur-xs transition hover:bg-white"
+            >
+              <ZoomIn class="h-4 w-4" />
+            </button>
+
+            <img
+              v-if="activeMainImage"
+              :src="activeMainImage"
+              @click="openLightboxPortal(activeMainImage)"
+              :alt="payload.product.name"
+              class="animate-fade-in h-full w-full cursor-zoom-in object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+            />
+            <div v-else class="flex h-full w-full items-center justify-center text-gray-300">
+              <PackageOpen class="h-14 w-14 stroke-[1.5]" />
             </div>
           </div>
 
-          <div v-if="payload.gallery_images.length > 0 || payload.product.image" class="w-full">
-            <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2 pl-1">Product Media Assets Gallery</p>
-            <div class="flex items-center space-x-3 overflow-x-auto pb-2 pt-0.5 max-w-full custom-scrollbar scroll-smooth snap-x">
-              <button 
+          <!-- Thumbnail Strip -->
+          <div v-if="payload.gallery_images.length > 0 || payload.product.image" class="space-y-1.5">
+            <div class="custom-scrollbar flex items-center space-x-2.5 overflow-x-auto pb-1">
+              <button
                 v-if="payload.product.image"
-                type="button" 
-                @click="updateMainStageViewer(payload.product.image)" 
-                :class="[activeMainImage === (getMediaUrl(payload.product.image)) ? 'border-[#84cc16] bg-emerald-50 border-2 shadow-md' : 'border-gray-200']"
-                class="w-16 h-16 sm:w-20 sm:h-20 snap-start shrink-0 border rounded-xl overflow-hidden bg-gray-50 transition active:scale-95 cursor-pointer outline-none"
+                type="button"
+                @click="updateMainStageViewer(payload.product.image)"
+                :class="[
+                  activeMainImage === getMediaUrl(payload.product.image)
+                    ? 'border-[#0A1128] ring-2 ring-[#D4F53C]'
+                    : 'border-gray-200 opacity-75 hover:opacity-100'
+                ]"
+                class="h-16 w-16 shrink-0 cursor-pointer overflow-hidden rounded-xl border bg-gray-50 transition sm:h-20 sm:w-20"
               >
-                <img :src="getMediaUrl(payload.product.image) || ''" alt="Cover" class="w-full h-full object-cover">
+                <img :src="getMediaUrl(payload.product.image) || ''" alt="Cover thumbnail" class="h-full w-full object-cover" />
               </button>
 
-              <button 
-                v-for="img in payload.gallery_images" 
+              <button
+                v-for="img in payload.gallery_images"
                 :key="img.id"
-                type="button" 
-                @click="updateMainStageViewer(img.image)" 
-                :class="[activeMainImage === (getMediaUrl(img.image)) ? 'border-[#84cc16] bg-emerald-50 border-2 shadow-md' : 'border-gray-200']"
-                class="w-16 h-16 sm:w-20 sm:h-20 snap-start shrink-0 border rounded-xl overflow-hidden bg-gray-50 transition active:scale-95 cursor-pointer outline-none"
+                type="button"
+                @click="updateMainStageViewer(img.image)"
+                :class="[
+                  activeMainImage === getMediaUrl(img.image)
+                    ? 'border-[#0A1128] ring-2 ring-[#D4F53C]'
+                    : 'border-gray-200 opacity-75 hover:opacity-100'
+                ]"
+                class="h-16 w-16 shrink-0 cursor-pointer overflow-hidden rounded-xl border bg-gray-50 transition sm:h-20 sm:w-20"
               >
-                <img :src="getMediaUrl(img.image) || ''" alt="Gallery item" class="w-full h-full object-cover">
+                <img :src="getMediaUrl(img.image) || ''" alt="Gallery thumbnail" class="h-full w-full object-cover" />
               </button>
             </div>
           </div>
         </div>
 
-        <div class="flex flex-col justify-between space-y-6">
-          <div>
-            <span class="text-[10px] font-black text-emerald-700 uppercase tracking-widest bg-[#D4F53C]/30 px-3 py-1.5 rounded-md inline-block shadow-2xs">
-              {{ payload.product.brand || "Genuine Article" }}
-            </span>
-            <h1 class="text-2xl sm:text-3xl font-black text-[#0A1128] tracking-tight mt-4 leading-tight">
-              {{ payload.product.name }}
-            </h1>
-            
-            <div class="mt-4 flex items-center justify-between gap-4 flex-wrap pb-4 border-b border-gray-100">
-              <div class="flex items-baseline space-x-3">
-                <span class="text-2xl sm:text-3xl font-black text-[#0A1128] tracking-tight leading-none">
-                  {{ formatCurrency(currentUnitPrice) }}
-                </span>
-                
-                <span 
-                  v-if="isPromoDiscountActive && baseOriginalPrice !== currentUnitPrice" 
-                  class="text-xs sm:text-sm text-gray-400 font-bold line-through tracking-tight decoration-rose-500/80 decoration-2"
-                >
-                  {{ formatCurrency(baseOriginalPrice) }}
-                </span>
-              </div>
-              
-              <span 
+        <!-- Right: Details, Variants, Quantity & Checkout -->
+        <div class="flex flex-col justify-between space-y-6 lg:col-span-6">
+          <div class="space-y-5">
+            <!-- Brand + Stock Pill -->
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span class="inline-block rounded-full bg-[#D4F53C]/40 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-[#0A1128]">
+                {{ payload.product.brand || 'Verified Item' }}
+              </span>
+
+              <span
                 v-if="isSkuAvailable"
-                class="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-lg shadow-2xs"
+                class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-emerald-800"
               >
+                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
                 In Stock
+              </span>
+              <span
+                v-else
+                class="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-rose-700"
+              >
+                <span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
+                Unavailable
               </span>
             </div>
 
-            <div class="text-xs sm:text-sm text-gray-500 mt-4 leading-relaxed pb-5 border-b border-gray-100 font-medium whitespace-pre-line">
-              {{ payload.product.description || "No supplemental item description logs provided." }}
+            <!-- Title -->
+            <h1 class="text-2xl font-black leading-tight tracking-tight text-[#0A1128] sm:text-3xl">
+              {{ payload.product.name }}
+            </h1>
+
+            <!-- Price Row -->
+            <div class="flex flex-wrap items-baseline gap-3 border-b border-gray-100 pb-4">
+              <span class="text-2xl font-black tracking-tight text-[#0A1128] sm:text-3xl">
+                {{ formatCurrency(currentUnitPrice) }}
+              </span>
+              <span
+                v-if="isPromoDiscountActive && baseOriginalPrice !== currentUnitPrice"
+                class="text-sm font-bold text-gray-400 line-through"
+              >
+                {{ formatCurrency(baseOriginalPrice) }}
+              </span>
             </div>
 
-            <div v-if="parsedKeyFeatures.length > 0" class="py-5 border-b border-gray-100 space-y-3">
-              <h3 class="text-xs font-black uppercase text-gray-400 tracking-wider flex items-center space-x-1.5 mb-1">
-                <Layers3 class="w-4 h-4 text-gray-400" />
-                <span>Key Specifications</span>
-              </h3>
-              <div class="space-y-2.5">
-                <div 
-                  v-for="(feature, fIdx) in parsedKeyFeatures" 
-                  :key="fIdx" 
-                  class="flex items-start space-x-2.5 text-xs sm:text-sm"
-                >
-                  <span class="w-1.5 h-1.5 rounded-full bg-[#0A1128] mt-1.5 shrink-0"></span>
-                  <div class="leading-relaxed text-[#0A1128] font-semibold">
-                    <span class="font-black text-gray-900">{{ feature.title }}:</span>
-                    <span class="text-gray-600 ml-1">{{ feature.value }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <!-- Description -->
+            <p class="whitespace-pre-line text-xs font-medium leading-relaxed text-gray-600 sm:text-sm">
+              {{ payload.product.description || 'No additional description provided for this item.' }}
+            </p>
 
-            <div v-if="payload.variant_options.length > 0" class="py-6 space-y-5 border-b border-gray-100">
-              <div v-for="option in payload.variant_options" :key="option.option_id">
-                <label class="text-[11px] font-black uppercase tracking-wider text-gray-400 block mb-2.5">Select {{ option.name }}</label>
+            <!-- Variant Options -->
+            <div v-if="payload.variant_options.length > 0" class="space-y-4 border-t border-gray-100 pt-4">
+              <div v-for="option in payload.variant_options" :key="option.option_id" class="space-y-2">
+                <label class="block text-[11px] font-extrabold uppercase tracking-wider text-gray-500">
+                  {{ option.name }}: <span class="text-[#0A1128]">{{ selectedOptions[option.name] || 'Choose' }}</span>
+                </label>
                 <div class="flex flex-wrap gap-2">
-                  <button 
-                    v-for="val in option.values" 
+                  <button
+                    v-for="val in option.values"
                     :key="val.value_id"
-                    type="button" 
+                    type="button"
                     @click="selectVariantValue(option.name, val.value_text)"
-                    :class="[selectedOptions[option.name] === val.value_text ? 'border-[#84cc16] bg-[#D4F53C]/20 text-[#0A1128] font-black' : 'border-gray-200 bg-white text-[#0A1128] hover:border-gray-300 font-bold']"
-                    class="min-w-[3.5rem] text-center px-4 py-2.5 border rounded-xl text-xs transition cursor-pointer shadow-2xs outline-none"
+                    :class="[
+                      selectedOptions[option.name] === val.value_text
+                        ? 'border-[#0A1128] bg-[#0A1128] text-[#D4F53C]'
+                        : 'border-gray-200 bg-white text-[#0A1128] hover:border-gray-300'
+                    ]"
+                    class="cursor-pointer rounded-xl border px-3.5 py-2 text-xs font-extrabold transition outline-none"
                   >
                     {{ val.value_text }}
                   </button>
                 </div>
               </div>
-              <span v-if="matchedSkuItem" class="text-xs text-emerald-700 font-black block pt-1">
-                ({{ matchedSkuItem.stock_qty }} items remaining in local inventory pool)
-              </span>
-              <span v-else class="text-xs text-rose-600 font-black block pt-1">
-                Specified configuration metrics unavailable. Select active swatches.
-              </span>
+
+              <p v-if="matchedSkuItem" class="text-xs font-bold text-emerald-700">
+                {{ matchedSkuItem.stock_qty }} available for this selection
+              </p>
+              <p v-else class="text-xs font-bold text-rose-600">
+                This option combination is currently unavailable. Try another selection.
+              </p>
             </div>
           </div>
 
-          <div class="space-y-6 pt-4">
-            <div v-if="validationErrorMessage" class="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-xs font-semibold text-rose-800 flex items-start space-x-2">
-              <AlertCircle class="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+          <!-- Bottom Actions -->
+          <div class="space-y-4 border-t border-gray-100 pt-5">
+            <div
+              v-if="validationErrorMessage"
+              class="flex items-start gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-3.5 text-xs font-bold text-rose-700"
+            >
+              <AlertCircle class="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
               <span>{{ validationErrorMessage }}</span>
             </div>
 
-            <div v-if="!payload.product.vendor?.is_currently_open" class="bg-rose-50 border border-rose-100 rounded-2xl p-4 flex items-start space-x-3 text-rose-800">
-              <AlertCircle class="w-5 h-5 text-rose-500 mt-0.5 shrink-0" />
+            <div
+              v-if="!payload.product.vendor?.is_currently_open"
+              class="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-800"
+            >
+              <AlertCircle class="mt-0.5 h-5 w-5 shrink-0 text-rose-600" />
               <div>
-                <h4 class="font-black text-xs sm:text-sm uppercase tracking-wide">Storefront Currently Closed</h4>
-                <p class="text-xs text-rose-600 mt-0.5 leading-relaxed font-semibold">
-                  Orders are offline at this time. Please check back during operations.
+                <h4 class="text-xs font-black uppercase tracking-wide">Storefront Currently Closed</h4>
+                <p class="mt-0.5 text-xs font-semibold text-rose-600">
+                  This store isn't accepting orders right now. Please check back later.
                 </p>
               </div>
             </div>
 
-            <div class="flex items-center space-x-4">
-              <div class="w-32 flex items-center border border-gray-200 rounded-xl overflow-hidden bg-gray-50 p-0.5 shadow-inner">
+            <!-- Quantity Stepper + Subtotal -->
+            <div class="flex items-center justify-between gap-4">
+              <div class="inline-flex items-center rounded-xl border border-gray-200 bg-gray-50 p-1">
                 <button
                   type="button"
                   @click="adjustQty(-1)"
                   :disabled="orderQuantity <= 1"
-                  class="w-10 py-2 font-black text-gray-500 hover:bg-white rounded-lg transition select-none cursor-pointer border-0 bg-transparent outline-none disabled:opacity-40 disabled:cursor-not-allowed"
-                >-</button>
+                  aria-label="Decrease quantity"
+                  class="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border-0 bg-white text-[#0A1128] shadow-2xs transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Minus class="h-3.5 w-3.5 stroke-[2.5]" />
+                </button>
                 <input
                   type="number"
                   v-model="orderQuantity"
                   min="1"
                   :max="maxAvailableStock"
-                  class="w-12 text-center bg-transparent border-none text-xs sm:text-sm font-black text-[#0A1128] outline-none focus:ring-0 select-none no-spinner"
                   readonly
-                >
+                  aria-label="Quantity"
+                  class="no-spinner w-11 border-0 bg-transparent text-center text-xs font-black text-[#0A1128] outline-none sm:text-sm"
+                />
                 <button
                   type="button"
                   @click="adjustQty(1)"
                   :disabled="orderQuantity >= maxAvailableStock"
-                  class="w-10 py-2 font-black text-gray-500 hover:bg-white rounded-lg transition select-none cursor-pointer border-0 bg-transparent outline-none disabled:opacity-40 disabled:cursor-not-allowed"
-                >+</button>
+                  aria-label="Increase quantity"
+                  class="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border-0 bg-white text-[#0A1128] shadow-2xs transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Plus class="h-3.5 w-3.5 stroke-[2.5]" />
+                </button>
               </div>
-              <span class="text-xs font-bold text-gray-400">
-                Subtotal: <strong class="text-[#0A1128]">{{ formatCurrency(currentUnitPrice * orderQuantity) }}</strong>
-              </span>
+
+              <div class="text-right">
+                <span class="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Subtotal</span>
+                <span class="text-base font-black text-[#0A1128] sm:text-lg">
+                  {{ formatCurrency(currentUnitPrice * orderQuantity) }}
+                </span>
+              </div>
             </div>
 
-            <button 
-              type="button" 
-              @click="handleProceedToCheckoutRoute"
-              :disabled="!isSkuAvailable || currentUnitPrice === 0 || (payload.variant_options.length > 0 && !matchedSkuItem)" 
-              :class="[isSkuAvailable && currentUnitPrice > 0 && !(payload.variant_options.length > 0 && !matchedSkuItem) ? 'bg-[#0A1128] hover:bg-emerald-800 text-white cursor-pointer transform active:scale-95 shadow-lg' : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-md']"
-              class="w-full font-black py-4 px-8 rounded-xl transition flex items-center justify-center space-x-2 text-sm sm:text-base border-0 outline-none"
-            >
-              <ShoppingBag class="w-4 h-4" />
-              <span>
-                <template v-if="!payload.product.vendor?.is_currently_open">Storefront Closed</template>
-                <template v-else-if="!payload.product.is_available">Out of Stock</template>
-                <template v-else-if="payload.variant_options.length > 0 && !matchedSkuItem">Select Options Combination</template>
-                <template v-else>Proceed to Checkout</template>
-              </span>
-              <ArrowRight class="w-4 h-4 stroke-[2.5]" />
-            </button>
+            <!-- CTA Buttons -->
+            <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-12">
+              <button
+                type="button"
+                @click="handleAddToCartOnly"
+                :disabled="!canPurchase"
+                :class="[
+                  canPurchase
+                    ? addedFeedback
+                      ? 'bg-emerald-600 text-white cursor-pointer'
+                      : 'bg-[#D4F53C] hover:bg-[#c5e632] text-[#0A1128] cursor-pointer active:scale-[0.99]'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                ]"
+                class="flex items-center justify-center gap-2 rounded-xl border-0 px-4 py-3.5 text-xs font-black uppercase tracking-wider transition outline-none sm:col-span-5 sm:py-4"
+              >
+                <CheckCircle2 v-if="addedFeedback" class="h-4 w-4" />
+                <ShoppingBag v-else class="h-4 w-4" />
+                <span>{{ addedFeedback ? 'Added to Cart' : 'Add to Cart' }}</span>
+              </button>
+
+              <button
+                type="button"
+                @click="handleProceedToCheckoutRoute"
+                :disabled="!canPurchase"
+                :class="[
+                  canPurchase
+                    ? 'bg-[#0A1128] hover:bg-[#16224a] text-white cursor-pointer active:scale-[0.99] shadow-md'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                ]"
+                class="flex items-center justify-center gap-2 rounded-xl border-0 px-5 py-3.5 text-xs font-black uppercase tracking-wider transition outline-none sm:col-span-7 sm:py-4 sm:text-sm"
+              >
+                <span>
+                  <template v-if="!payload.product.vendor?.is_currently_open">Storefront Closed</template>
+                  <template v-else-if="!payload.product.is_available">Out of Stock</template>
+                  <template v-else-if="payload.variant_options.length > 0 && !matchedSkuItem">Select Options</template>
+                  <template v-else>BUY NOW</template>
+                </span>
+                <ArrowRight v-if="canPurchase" class="h-4 w-4 stroke-[2.5]" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
+
+      <!-- Separate Key Specifications Card at the Bottom -->
+      <section
+        v-if="parsedKeyFeatures.length > 0"
+        aria-label="Key Specifications"
+        class="border border-gray-200/90 bg-white p-5 shadow-sm sm:p-8"
+      >
+        <div class="mb-4 flex items-center gap-2 border-b border-gray-100 pb-3.5">
+          <div class="flex h-8 w-8 items-center justify-center rounded-xl bg-[#D4F53C]/40 text-[#0A1128]">
+            <Layers3 class="h-4 w-4" />
+          </div>
+          <h2 class="text-sm font-black uppercase tracking-wider text-[#0A1128]">
+            Product Description
+          </h2>
+        </div>
+
+        <ul class="divide-y divide-gray-100">
+          <li
+            v-for="(feature, fIdx) in parsedKeyFeatures"
+            :key="fIdx"
+            class="flex flex-col gap-1 py-3 first:pt-1 last:pb-1 sm:flex-row sm:items-baseline sm:gap-3"
+          >
+            <span class="shrink-0 text-xs font-black uppercase tracking-wider text-gray-500 sm:min-w-[180px]">
+              {{ feature.title }}:
+            </span>
+            <span class="text-xs font-bold leading-relaxed text-[#0A1128] sm:text-sm">
+              {{ feature.value }}
+            </span>
+          </li>
+        </ul>
+      </section>
     </div>
 
-    <div 
+    <!-- Lightbox Modal -->
+    <div
       :class="[isLightboxOpen ? 'opacity-100 pointer-events-auto flex' : 'opacity-0 pointer-events-none hidden']"
-      class="fixed inset-0 z-50 bg-[#0A1128]/95 backdrop-blur-md items-center justify-center p-4 transition-all duration-300"
+      class="fixed inset-0 z-50 items-center justify-center bg-[#0A1128]/95 p-4 backdrop-blur-md transition-all duration-300"
     >
       <div @click="closeLightboxPortal" class="absolute inset-0 cursor-zoom-out"></div>
-      <button @click="closeLightboxPortal" type="button" class="absolute top-6 right-6 text-white/70 hover:text-[#D4F53C] transition border-0 outline-none p-2 z-10 cursor-pointer">
-        <X class="w-6 h-6" />
-      </button>
-      <div 
-        :class="[isLightboxOpen ? 'scale-100' : 'scale-95']"
-        class="relative max-w-full max-h-[85vh] rounded-2xl overflow-hidden shadow-2xl transform transition-transform duration-300 ease-out select-none"
+      <button
+        @click="closeLightboxPortal"
+        type="button"
+        aria-label="Close image preview"
+        class="fixed right-5 top-5 z-10 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-0 bg-white/10 text-white transition hover:bg-white/20 hover:text-[#D4F53C]"
       >
-        <img :src="lightboxImage" alt="Enlarged visualization canvas" class="w-full h-full object-contain max-h-[85vh]">
+        <X class="h-5 w-5" />
+      </button>
+      <div
+        :class="[isLightboxOpen ? 'scale-100' : 'scale-95']"
+        class="relative max-h-[85vh] max-w-full transform select-none overflow-hidden rounded-2xl shadow-2xl transition-transform duration-300 ease-out"
+      >
+        <img :src="lightboxImage" alt="Enlarged product preview" class="max-h-[85vh] w-full object-contain" />
       </div>
     </div>
   </main>
 </template>
 
 <style scoped>
-.custom-scrollbar::-webkit-scrollbar { height: 5px; }
-.custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-.no-spinner::-webkit-outer-spin-button, .no-spinner::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.no-spinner { -moz-appearance: textfield; }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-.animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+.custom-scrollbar::-webkit-scrollbar {
+  height: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.no-spinner {
+  -moz-appearance: textfield;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
 </style>

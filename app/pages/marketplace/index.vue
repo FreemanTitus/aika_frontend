@@ -38,6 +38,11 @@ const route = useRoute()
 
 const { cartItems, addToCart, updateQuantity } = useCart()
 
+// Reactive states for vendor data, loading, and error handling
+const response = ref<any>(null)
+const pending = ref<boolean>(true)
+const error = ref<boolean>(false)
+
 const getItemQuantity = (productId: number | string): number => {
   const found = cartItems.value.find(item => String(item.id) === String(productId))
   return found ? Number(found.quantity || 0) : 0
@@ -70,7 +75,6 @@ const onUpdateCartQuantity = async (payload: {
     await updateQuantity(productId, 'decrement')
   }
 }
-
 
 // Build a quick lookup map from fetched vendors (by id and normalized name)
 const vendorCodeByKey = computed(() => {
@@ -209,11 +213,6 @@ const switchViewMode = (mode: ViewMode): void => {
   }
 }
 
-// Reactive states for vendor data, loading, and error handling
-const response = ref<any>(null)
-const pending = ref<boolean>(true)
-const error = ref<boolean>(false)
-
 const fetchProducts = async ({ append = false, reset = false } = {}) => {
   if (append && (loadingMoreProducts.value || productsPending.value || !hasMoreProducts.value)) {
     return
@@ -256,7 +255,7 @@ const fetchProducts = async ({ append = false, reset = false } = {}) => {
 
     const rawIncoming: any[] = res?.data?.items || res?.items || []
     const incoming: any[] = rawIncoming.map(normalizeProductItem)
-    
+
     if (append) {
       const existingIds = new Set(productItems.value.map(i => String(i.id)))
       const uniqueNew = incoming.filter(i => !existingIds.has(String(i.id)))
@@ -637,7 +636,7 @@ const retryCurrentView = () => {
 
     <!-- ===================== STICKY DISCOVERY BAR ===================== -->
     <div class="sticky top-0 z-40 border-b border-gray-200 bg-white/95 backdrop-blur-md">
-      <div class="mx-auto max-w-7xl space-y-3 px-5 py-3 sm:px-8">
+      <div class="mx-auto max-w-7xl space-y-3 px-3.5 py-3 sm:px-8">
 
         <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <!-- Category tabs with live counts -->
@@ -768,26 +767,26 @@ const retryCurrentView = () => {
     </div>
 
     <!-- ===================== RESULTS GRID ===================== -->
-    <main class="mx-auto max-w-7xl px-5 py-8 sm:px-8 md:py-10">
+    <main class="mx-auto max-w-7xl px-3.5 py-8 sm:px-8 md:py-10">
 
       <!-- Loading: 8-card shimmer skeleton -->
       <div v-if="isCurrentViewLoading" class="space-y-6" aria-busy="true" aria-label="Loading marketplace">
         <div class="shimmer h-7 w-48 rounded-lg"></div>
-        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
           <div
             v-for="n in 8"
             :key="n"
-            class="flex flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white"
+            class="flex flex-col overflow-hidden rounded-2xl sm:rounded-3xl border border-gray-200 bg-white"
           >
-            <div class="shimmer aspect-video w-full"></div>
-            <div class="flex flex-1 flex-col px-4 pb-4">
-              <div class="shimmer -mt-7 mb-3 h-14 w-14 rounded-2xl border-[3px] border-white"></div>
+            <div class="shimmer aspect-[4/3] sm:aspect-video w-full"></div>
+            <div class="flex flex-1 flex-col px-3 pb-3 sm:px-4 sm:pb-4">
+              <div class="shimmer -mt-5 mb-2 sm:-mt-7 sm:mb-3 h-10 w-10 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl border-2 sm:border-[3px] border-white"></div>
               <div class="shimmer h-4 w-3/4 rounded-md"></div>
-              <div class="shimmer mt-3 h-3 w-full rounded-md"></div>
+              <div class="shimmer mt-2.5 h-3 w-full rounded-md"></div>
               <div class="shimmer mt-2 h-3 w-2/3 rounded-md"></div>
-              <div class="flex items-center gap-2 pt-5">
-                <div class="shimmer h-6 w-16 rounded-full"></div>
-                <div class="shimmer ml-auto h-6 w-14 rounded-full"></div>
+              <div class="flex items-center gap-2 pt-4 sm:pt-5">
+                <div class="shimmer h-5 sm:h-6 w-14 sm:w-16 rounded-full"></div>
+                <div class="shimmer ml-auto h-5 sm:h-6 w-12 sm:w-14 rounded-full"></div>
               </div>
             </div>
           </div>
@@ -830,7 +829,7 @@ const retryCurrentView = () => {
         <!-- Vendor Grid -->
         <div
           v-if="displayedVendors.length > 0"
-          class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+          class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4"
         >
           <MarketplaceVendorCard
             v-for="shop in displayedVendors"
@@ -906,7 +905,7 @@ const retryCurrentView = () => {
         <!-- Product Grid -->
         <div
           v-if="marketplaceProducts.length > 0"
-          class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+          class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4"
         >
           <MarketplaceProductCard
             v-for="item in marketplaceProducts"

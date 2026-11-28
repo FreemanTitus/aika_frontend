@@ -12,7 +12,8 @@ import {
   MapPin,
   Clock,
   ShieldCheck,
-  Package
+  Package,
+  Loader2
 } from '@lucide/vue'
 
 definePageMeta({
@@ -40,12 +41,15 @@ const apiBase = config.public.apiBase
 const router = useRouter()
 
 // ============================================================================
-// STATE FOR LIVE FEED DATA
+// STATE FOR LIVE FEED DATA & BACKEND LOADERS
 // ============================================================================
 const featuredMeals = ref<any[]>([])
 const mealCategories = ref<any[]>([])
 const restaurants = ref<any[]>([])
 const isLoadingFeed = ref(true)
+const isLoadingReviews = ref(true)
+const isLoadingFaqs = ref(true)
+const isSubmittingReview = ref(false)
 
 // ============================================================================
 // 1. GLOVO-STYLE INTERACTIVE SEARCH & LEFT ANIMATED IMAGE SHOWCASE
@@ -82,7 +86,7 @@ const leftHeroSlides = [
   },
   {
     label: 'Beauty & Cosmetics',
-    image: 'gif/cosmetic.png'
+    image: '/gif/cosmetic.png'
   },
   {
     label: 'Perfumes & Body Sprays',
@@ -131,6 +135,8 @@ const openReviewModal = () => {
 }
 
 const handleReviewSubmit = async () => {
+  if (isSubmittingReview.value) return
+  isSubmittingReview.value = true
   try {
     await $fetch(`${apiBase}/api/v1/public/submit-review`, {
       method: 'POST',
@@ -147,24 +153,32 @@ const handleReviewSubmit = async () => {
       message: err?.data?.detail || 'Failed to submit review. Please try again.',
       type: 'error'
     }
+  } finally {
+    isSubmittingReview.value = false
   }
 }
 
 const fetchReviews = async () => {
+  isLoadingReviews.value = true
   try {
     const res: any = await $fetch(`${apiBase}/api/v1/public/reviews`)
     reviews.value = res?.reviews || []
   } catch (err) {
     console.error('Failed to fetch customer reviews', err)
+  } finally {
+    isLoadingReviews.value = false
   }
 }
 
 const fetchFaqs = async () => {
+  isLoadingFaqs.value = true
   try {
     const res: any = await $fetch(`${apiBase}/api/v1/public/faqs`)
     faqs.value = res?.faqs || []
   } catch (err) {
     console.error('Failed to fetch FAQs', err)
+  } finally {
+    isLoadingFaqs.value = false
   }
 }
 
@@ -174,6 +188,7 @@ const toggleFaq = (index: number): void => {
 }
 
 const fetchHomeFeed = async () => {
+  isLoadingFeed.value = true
   try {
     const res: any = await $fetch(`${apiBase}/api/v1/public/home-feed`)
     if (res?.status === 'success') {
@@ -449,7 +464,28 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
+        <!-- Reviews Loader -->
+        <div v-if="isLoadingReviews" class="flex space-x-5 overflow-hidden pb-4" aria-busy="true">
+          <div
+            v-for="n in 3"
+            :key="n"
+            class="flex-shrink-0 w-full sm:w-[370px] bg-gray-50 border border-gray-100 rounded-[28px] p-7 space-y-4"
+          >
+            <div class="flex items-center gap-2">
+              <Loader2 class="w-4 h-4 animate-spin text-[#0A1128]" />
+              <span class="text-xs font-bold text-gray-400">Loading reviews...</span>
+            </div>
+            <div class="h-4 w-5/6 rounded bg-gray-200/80 animate-pulse"></div>
+            <div class="h-4 w-2/3 rounded bg-gray-200/80 animate-pulse"></div>
+            <div class="pt-4 border-t border-gray-200/70 space-y-2">
+              <div class="h-3.5 w-1/3 rounded bg-gray-200/80 animate-pulse"></div>
+              <div class="h-2.5 w-1/4 rounded bg-gray-200/80 animate-pulse"></div>
+            </div>
+          </div>
+        </div>
+
         <div
+          v-else-if="reviews.length > 0"
           ref="testimonialRail"
           class="flex space-x-5 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-4 scrollbar-none"
           style="-ms-overflow-style: none; scrollbar-width: none;"
@@ -472,7 +508,11 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div v-if="reviews.length > 1" class="flex justify-end items-center space-x-2.5 mt-4">
+        <div v-else class="rounded-[28px] border border-gray-100 bg-gray-50 p-8 text-center">
+          <p class="text-xs sm:text-sm font-bold text-gray-400">No reviews yet. Be the first to share your experience!</p>
+        </div>
+
+        <div v-if="!isLoadingReviews && reviews.length > 1" class="flex justify-end items-center space-x-2.5 mt-4">
           <button
             type="button"
             @click="slideRail('left')"
@@ -503,7 +543,19 @@ onBeforeUnmount(() => {
           <h2 class="text-3xl font-black text-[#0A1128] tracking-tight">Quick Answers</h2>
         </div>
 
-        <div class="space-y-3">
+        <!-- FAQ Loader -->
+        <div v-if="isLoadingFaqs" class="space-y-3" aria-busy="true">
+          <div
+            v-for="n in 4"
+            :key="n"
+            class="border border-gray-200/80 rounded-2xl bg-gray-50/60 px-5 py-4 flex items-center justify-between"
+          >
+            <div class="h-4 w-3/4 rounded bg-gray-200/80 animate-pulse"></div>
+            <Loader2 class="w-4 h-4 animate-spin text-[#0A1128] shrink-0" />
+          </div>
+        </div>
+
+        <div v-else-if="faqs.length > 0" class="space-y-3">
           <div
             v-for="(faq, index) in faqs"
             :key="faq.id"
@@ -529,6 +581,10 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </div>
+
+        <div v-else class="rounded-2xl border border-gray-200/80 bg-gray-50/60 p-8 text-center">
+          <p class="text-xs sm:text-sm font-bold text-gray-400">No FAQs available right now.</p>
+        </div>
       </div>
     </section>
 
@@ -544,8 +600,9 @@ onBeforeUnmount(() => {
           </div>
           <button
             type="button"
+            :disabled="isSubmittingReview"
             @click="isReviewModalOpen = false"
-            class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-[#0A1128] bg-gray-100 rounded-xl border-0 cursor-pointer"
+            class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-[#0A1128] bg-gray-100 rounded-xl border-0 cursor-pointer disabled:opacity-50"
           >
             ✕
           </button>
@@ -585,16 +642,19 @@ onBeforeUnmount(() => {
           <div class="pt-1 flex items-center gap-3">
             <button
               type="button"
+              :disabled="isSubmittingReview"
               @click="isReviewModalOpen = false"
-              class="w-1/3 py-3.5 bg-gray-100 hover:bg-gray-200 font-black text-xs uppercase rounded-2xl border-0 cursor-pointer"
+              class="w-1/3 py-3.5 bg-gray-100 hover:bg-gray-200 font-black text-xs uppercase rounded-2xl border-0 cursor-pointer disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              class="w-2/3 py-3.5 bg-[#D4F53C] hover:bg-[#c3e334] font-black text-xs uppercase rounded-2xl shadow-md border-0 cursor-pointer"
+              :disabled="isSubmittingReview"
+              class="w-2/3 py-3.5 bg-[#D4F53C] hover:bg-[#c3e334] font-black text-xs uppercase rounded-2xl shadow-md border-0 cursor-pointer inline-flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              Submit Review
+              <Loader2 v-if="isSubmittingReview" class="w-4 h-4 animate-spin" />
+              <span>{{ isSubmittingReview ? 'Submitting...' : 'Submit Review' }}</span>
             </button>
           </div>
         </form>
